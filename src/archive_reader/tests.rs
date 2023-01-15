@@ -59,22 +59,22 @@ fn test_list_file_names(path: &str, expected: &[&str]) -> Result<()> {
 
 #[test]
 fn test_read_zip() -> Result<()> {
-    test_read_file(zip_archive(), "content/nested/second", b"second\n")
+    test_read_file_to_bytes(zip_archive(), "content/nested/second", b"second\n")
 }
 
 #[test]
 fn test_read_7z() -> Result<()> {
-    test_read_file(seven_z_archive(), "content/nested/second", b"second\n")
+    test_read_file_to_bytes(seven_z_archive(), "content/nested/second", b"second\n")
 }
 
 #[test]
 fn test_read_rar() -> Result<()> {
-    test_read_file(rar_archive(), "content/nested/second", b"second\n")
+    test_read_file_to_bytes(rar_archive(), "content/nested/second", b"second\n")
 }
 
-fn test_read_file(archive_path: &str, file_path: &str, expected: &[u8]) -> Result<()> {
+fn test_read_file_to_bytes(archive_path: &str, file_path: &str, expected: &[u8]) -> Result<()> {
     let archive = ArchiveReader::open(archive_path)?;
-    let bytes = archive.read_file(file_path)?;
+    let bytes = archive.read_file_to_bytes(file_path)?;
     assert_eq!(bytes, expected);
     Ok(())
 }

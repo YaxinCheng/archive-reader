@@ -2,6 +2,7 @@ use super::iter;
 use crate::error::{analyze_result, path_does_not_exist, Error, Result};
 use log::{error, info};
 use std::ffi::CString;
+use std::io::Write;
 use std::path::Path;
 
 use crate::libarchive;
@@ -60,25 +61,60 @@ impl ArchiveReader {
         iter::EntryIter::new(self, decoding)
     }
 
-    pub fn read_file(self, file_name: &str) -> Result<Vec<u8>> {
-        info!(r#"ArchiveReader::read_file("file_name: {file_name}")"#);
+    pub fn read_file_to_bytes(self, file_name: &str) -> Result<Vec<u8>> {
+        info!(r#"ArchiveReader::read_file_to_bytes("file_name: {file_name}")"#);
         let mut combined = Vec::new();
-        for bytes in self.read_file_by_block(file_name)? {
-            combined.extend_from_slice(&bytes?);
-        }
+        self.read_file(file_name, &mut combined)?;
         Ok(combined)
     }
 
-    pub fn read_file_with_encoding<F>(self, file_name: &str, decoding: F) -> Result<Vec<u8>>
+    pub fn read_file(self, file_name: &str, mut output: impl Write) -> Result<usize> {
+        info!(r#"ArchiveReader::read_file("file_name: {file_name}", output: _)"#);
+        let mut total_read = 0;
+        for bytes in self.read_file_by_block(file_name)? {
+            let bytes = bytes?;
+            total_read += bytes.len();
+            output.write_all(bytes.as_ref())?;
+        }
+        Ok(total_read)
+    }
+
+    pub fn read_file_to_bytes_with_encoding<F>(
+        self,
+        file_name: &str,
+        decoding: F,
+    ) -> Result<Vec<u8>>
     where
         F: Fn(&[u8]) -> Option<String>,
     {
-        info!(r#"ArchiveReader::read_file_with_encoding("file_name: {file_name}", decoding: _)"#);
+        info!(
+            r#"ArchiveReader::read_file_to_bytes_with_encoding("file_name: {file_name}", decoding: _)"#
+        );
         let mut combined = Vec::new();
-        for bytes in self.read_file_by_block_with_encoding(file_name, decoding)? {
-            combined.extend_from_slice(&bytes?);
-        }
+        self.read_file_with_encoding(file_name, &mut combined, decoding)?;
         Ok(combined)
+    }
+
+    pub fn read_file_with_encoding<W, F>(
+        self,
+        file_name: &str,
+        mut output: W,
+        decoding: F,
+    ) -> Result<usize>
+    where
+        W: Write,
+        F: Fn(&[u8]) -> Option<String>,
+    {
+        info!(
+            r#"ArchiveReader::read_file_with_encoding("file_name: {file_name}", output: _, decoding: _)"#
+        );
+        let mut total_read = 0;
+        for bytes in self.read_file_by_block_with_encoding(file_name, decoding)? {
+            let bytes = bytes?;
+            total_read += bytes.len();
+            output.write_all(bytes.as_ref())?;
+        }
+        Ok(total_read)
     }
 
     pub fn read_file_by_block(
