@@ -6,6 +6,8 @@ use std::path::Path;
 
 use crate::libarchive;
 
+pub type Bytes = Box<[u8]>;
+
 pub struct ArchiveReader {
     pub(crate) handle: *mut libarchive::archive,
 }
@@ -56,6 +58,50 @@ impl ArchiveReader {
     {
         info!("ArchiveReader::list_file_names_with_encoding()");
         iter::EntryIter::new(self, decoding)
+    }
+
+    pub fn read_file(self, file_name: &str) -> Result<Vec<u8>> {
+        let mut combined = Vec::new();
+        for bytes in self.read_file_by_blocks(file_name)? {
+            combined.extend_from_slice(&bytes?);
+        }
+        Ok(combined)
+    }
+
+    pub fn read_file_with_encoding<F>(self, file_name: &str, decoding: F) -> Result<Vec<u8>>
+    where
+        F: Fn(&[u8]) -> Option<String>,
+    {
+        let mut combined = Vec::new();
+        for bytes in self.read_file_by_blocks_with_encoding(file_name, decoding)? {
+            combined.extend_from_slice(&bytes?);
+        }
+        Ok(combined)
+    }
+
+    pub fn read_file_by_blocks(
+        self,
+        file_name: &str,
+    ) -> Result<impl Iterator<Item = Result<Bytes>>> {
+        self.read_file_by_blocks_with_encoding(file_name, |entry_name| {
+            Some(String::from_utf8_lossy(entry_name).to_string())
+        })
+    }
+
+    pub fn read_file_by_blocks_with_encoding<F>(
+        self,
+        file_name: &str,
+        decoding: F,
+    ) -> Result<impl Iterator<Item = Result<Bytes>>>
+    where
+        F: Fn(&[u8]) -> Option<String>,
+    {
+        for entry_name in iter::EntryIterBorrowed::new(self.handle, decoding) {
+            if entry_name? == file_name {
+                break;
+            }
+        }
+        Ok(iter::BlockReader::new(self))
     }
 
     fn clean(&self) -> Result<()> {
