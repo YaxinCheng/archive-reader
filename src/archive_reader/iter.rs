@@ -1,10 +1,10 @@
 use crate::error::{analyze_result, Error, Result};
-use crate::libarchive;
+use crate::{libarchive, ArchiveReader};
 use log::{debug, error};
 use std::ffi::CStr;
 
 pub struct EntryIter<F> {
-    handle: *mut libarchive::archive,
+    reader: ArchiveReader,
     decoding: F,
 }
 
@@ -12,8 +12,8 @@ impl<F> EntryIter<F>
 where
     F: Fn(&[u8]) -> Option<String>,
 {
-    pub fn new(handle: *mut libarchive::archive, decoding: F) -> Self {
-        Self { handle, decoding }
+    pub fn new(reader: ArchiveReader, decoding: F) -> Self {
+        Self { reader, decoding }
     }
 }
 
@@ -26,13 +26,13 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         let mut entry = std::ptr::null_mut();
         unsafe {
-            match libarchive::archive_read_next_header(self.handle, &mut entry) {
+            match libarchive::archive_read_next_header(self.reader.handle, &mut entry) {
                 1 /*libarchive::ARCHIVE_EOF*/ => {
                     debug!("archive_read_next_header: reaches EOF");
                     return None
                 },
                 result => {
-                    if let Err(error) = analyze_result(result, self.handle) {
+                    if let Err(error) = analyze_result(result, self.reader.handle) {
                         error!("archive_read_next_header error: {error}");
                         return Some(Err(error))
                     }

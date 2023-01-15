@@ -7,7 +7,7 @@ use std::path::Path;
 use crate::libarchive;
 
 pub struct ArchiveReader {
-    handle: *mut libarchive::archive,
+    pub(crate) handle: *mut libarchive::archive,
 }
 
 unsafe impl Send for ArchiveReader {}
@@ -55,7 +55,7 @@ impl ArchiveReader {
         F: Fn(&[u8]) -> Option<String>,
     {
         info!("ArchiveReader::list_file_names_with_encoding()");
-        iter::EntryIter::new(self.handle, decoding)
+        iter::EntryIter::new(self, decoding)
     }
 
     fn clean(&self) -> Result<()> {
