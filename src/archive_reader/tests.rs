@@ -56,3 +56,44 @@ fn test_list_file_names(path: &str, expected: &[&str]) -> Result<()> {
     assert_eq!(file_names, expected);
     Ok(())
 }
+
+#[test]
+fn test_read_zip() -> Result<()> {
+    test_read_file(zip_archive(), "content/nested/second", b"second\n")
+}
+
+#[test]
+fn test_read_7z() -> Result<()> {
+    test_read_file(seven_z_archive(), "content/nested/second", b"second\n")
+}
+
+#[test]
+fn test_read_rar() -> Result<()> {
+    test_read_file(rar_archive(), "content/nested/second", b"second\n")
+}
+
+fn test_read_file(archive_path: &str, file_path: &str, expected: &[u8]) -> Result<()> {
+    let archive = ArchiveReader::open(archive_path)?;
+    let bytes = archive.read_file(file_path)?;
+    assert_eq!(bytes, expected);
+    Ok(())
+}
+
+#[test]
+fn test_read_by_blocks() -> Result<()> {
+    let archive = ArchiveReader::open(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/test_resources/large.zip"
+    ))?;
+    let mut num_of_blocks = 0_usize;
+    let mut total_size = 0_usize;
+    for block in archive.read_file_by_blocks("large.txt")? {
+        let block = block?;
+        num_of_blocks += 1;
+        total_size += block.len();
+    }
+    assert!(num_of_blocks > 1);
+    let expected_size = 819201;
+    assert_eq!(total_size, expected_size);
+    Ok(())
+}
