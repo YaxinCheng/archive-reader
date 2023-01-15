@@ -108,9 +108,13 @@ impl Iterator for BlockReader {
 
         unsafe {
             match libarchive::archive_read_data_block(self.0.handle, &mut buf, &mut size, &mut offset) {
-                1 /*libarchive::ARCHIVE_EOF*/ => return None,
+                1 /*libarchive::ARCHIVE_EOF*/ => {
+                    debug!("archive_read_data_block: reaches eof");
+                    return None
+                },
                 result => {
                     if let Err(error) = analyze_result(result, self.0.handle) {
+                        error!("archive_read_data_block error: {error}");
                         return Some(Err(error))
                     }
                 }

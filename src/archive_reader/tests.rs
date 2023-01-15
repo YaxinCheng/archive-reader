@@ -87,7 +87,7 @@ fn test_read_by_blocks() -> Result<()> {
     ))?;
     let mut num_of_blocks = 0_usize;
     let mut total_size = 0_usize;
-    for block in archive.read_file_by_blocks("large.txt")? {
+    for block in archive.read_file_by_block("large.txt")? {
         let block = block?;
         num_of_blocks += 1;
         total_size += block.len();

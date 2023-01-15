@@ -56,13 +56,14 @@ impl ArchiveReader {
     where
         F: Fn(&[u8]) -> Option<String>,
     {
-        info!("ArchiveReader::list_file_names_with_encoding()");
+        info!("ArchiveReader::list_file_names_with_encoding(decoding: _)");
         iter::EntryIter::new(self, decoding)
     }
 
     pub fn read_file(self, file_name: &str) -> Result<Vec<u8>> {
+        info!(r#"ArchiveReader::read_file("file_name: {file_name}")"#);
         let mut combined = Vec::new();
-        for bytes in self.read_file_by_blocks(file_name)? {
+        for bytes in self.read_file_by_block(file_name)? {
             combined.extend_from_slice(&bytes?);
         }
         Ok(combined)
@@ -72,23 +73,25 @@ impl ArchiveReader {
     where
         F: Fn(&[u8]) -> Option<String>,
     {
+        info!(r#"ArchiveReader::read_file_with_encoding("file_name: {file_name}", decoding: _)"#);
         let mut combined = Vec::new();
-        for bytes in self.read_file_by_blocks_with_encoding(file_name, decoding)? {
+        for bytes in self.read_file_by_block_with_encoding(file_name, decoding)? {
             combined.extend_from_slice(&bytes?);
         }
         Ok(combined)
     }
 
-    pub fn read_file_by_blocks(
+    pub fn read_file_by_block(
         self,
         file_name: &str,
     ) -> Result<impl Iterator<Item = Result<Bytes>>> {
-        self.read_file_by_blocks_with_encoding(file_name, |entry_name| {
+        info!(r#"ArchiveReader::read_file_by_block("file_name: {file_name}")"#);
+        self.read_file_by_block_with_encoding(file_name, |entry_name| {
             Some(String::from_utf8_lossy(entry_name).to_string())
         })
     }
 
-    pub fn read_file_by_blocks_with_encoding<F>(
+    pub fn read_file_by_block_with_encoding<F>(
         self,
         file_name: &str,
         decoding: F,
@@ -96,6 +99,9 @@ impl ArchiveReader {
     where
         F: Fn(&[u8]) -> Option<String>,
     {
+        info!(
+            r#"ArchiveReader::read_file_by_blockwith_encoding(file_name: "{file_name}", decoding: _)"#
+        );
         for entry_name in iter::EntryIterBorrowed::new(self.handle, decoding) {
             if entry_name? == file_name {
                 break;
