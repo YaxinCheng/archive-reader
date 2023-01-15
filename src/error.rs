@@ -22,13 +22,13 @@ pub(crate) fn analyze_result(
     handle: *mut libarchive::archive,
 ) -> Result<()> {
     match result {
-        0 /*libarchive::ARCHIVE_OK*/ | libarchive::ARCHIVE_WARN => Ok(()),
+        libarchive::ARCHIVE_OK | libarchive::ARCHIVE_WARN => Ok(()),
         _ => unsafe {
             let error_string = libarchive::archive_error_string(handle);
             if !error_string.is_null() {
                 return Err(Error::Extraction(
-                    CStr::from_ptr(error_string).to_string_lossy().to_string()
-                ))
+                    CStr::from_ptr(error_string).to_string_lossy().to_string(),
+                ));
             }
             let error_code = libarchive::archive_errno(handle);
             if error_code != 0 {

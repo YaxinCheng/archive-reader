@@ -58,14 +58,14 @@ where
         let mut entry = std::ptr::null_mut();
         unsafe {
             match libarchive::archive_read_next_header(self.handle, &mut entry) {
-                1 /*libarchive::ARCHIVE_EOF*/ => {
+                libarchive::ARCHIVE_EOF => {
                     debug!("archive_read_next_header: reaches EOF");
-                    return None
-                },
+                    return None;
+                }
                 result => {
                     if let Err(error) = analyze_result(result, self.handle) {
                         error!("archive_read_next_header error: {error}");
-                        return Some(Err(error))
+                        return Some(Err(error));
                     }
                     debug!("archive_read_next_header: success");
                 }
@@ -107,20 +107,27 @@ impl Iterator for BlockReader {
         let mut size = 0;
 
         unsafe {
-            match libarchive::archive_read_data_block(self.0.handle, &mut buf, &mut size, &mut offset) {
-                1 /*libarchive::ARCHIVE_EOF*/ => {
+            match libarchive::archive_read_data_block(
+                self.0.handle,
+                &mut buf,
+                &mut size,
+                &mut offset,
+            ) {
+                libarchive::ARCHIVE_EOF => {
                     debug!("archive_read_data_block: reaches eof");
-                    return None
-                },
-                result => {
-                    if let Err(error) = analyze_result(result, self.0.handle) {
-                        error!("archive_read_data_block error: {error}");
-                        return Some(Err(error))
-                    }
+                    None
                 }
-            };
-            let content = slice::from_raw_parts(buf as *const u8, size);
-            Some(Ok(content.into()))
+                result => match analyze_result(result, self.0.handle) {
+                    Ok(()) => {
+                        let content = slice::from_raw_parts(buf as *const u8, size);
+                        Some(Ok(content.into()))
+                    }
+                    Err(error) => {
+                        error!("archive_read_data_block error: {error}");
+                        Some(Err(error))
+                    }
+                },
+            }
         }
     }
 }
