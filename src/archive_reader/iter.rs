@@ -1,5 +1,5 @@
 use crate::error::{analyze_result, Error, Result};
-use crate::{libarchive, ArchiveReader};
+use crate::{libarchive, ArchiveReader, LendingIterator};
 use log::{debug, error};
 use std::ffi::CStr;
 use std::slice;
@@ -98,10 +98,10 @@ impl BlockReader {
     }
 }
 
-impl Iterator for BlockReader {
-    type Item = Result<Box<[u8]>>;
+impl LendingIterator for BlockReader {
+    type Item<'me> = Result<&'me [u8]>;
 
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<Result<&[u8]>> {
         let mut buf = std::ptr::null();
         let mut offset = 0;
         let mut size = 0;
@@ -120,7 +120,7 @@ impl Iterator for BlockReader {
                 result => match analyze_result(result, self.0.handle) {
                     Ok(()) => {
                         let content = slice::from_raw_parts(buf as *const u8, size);
-                        Some(Ok(content.into()))
+                        Some(Ok(content))
                     }
                     Err(error) => {
                         error!("archive_read_data_block error: {error}");
