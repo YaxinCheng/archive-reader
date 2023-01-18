@@ -5,9 +5,9 @@ use std::ffi::CString;
 use std::io::Write;
 use std::path::Path;
 
-use crate::libarchive;
+use crate::{libarchive, LendingIterator};
 
-pub type Bytes = Box<[u8]>;
+pub type Bytes<'a> = &'a [u8];
 
 pub struct ArchiveReader {
     pub(crate) handle: *mut libarchive::archive,
@@ -71,7 +71,8 @@ impl ArchiveReader {
     pub fn read_file(self, file_name: &str, mut output: impl Write) -> Result<usize> {
         info!(r#"ArchiveReader::read_file("file_name: {file_name}", output: _)"#);
         let mut total_read = 0;
-        for bytes in self.read_file_by_block(file_name)? {
+        let mut blocks = self.read_file_by_block(file_name)?;
+        while let Some(bytes) = blocks.next() {
             let bytes = bytes?;
             total_read += bytes.len();
             output.write_all(bytes.as_ref())?;
@@ -109,7 +110,8 @@ impl ArchiveReader {
             r#"ArchiveReader::read_file_with_encoding("file_name: {file_name}", output: _, decoding: _)"#
         );
         let mut total_read = 0;
-        for bytes in self.read_file_by_block_with_encoding(file_name, decoding)? {
+        let mut blocks = self.read_file_by_block_with_encoding(file_name, decoding)?;
+        while let Some(bytes) = blocks.next() {
             let bytes = bytes?;
             total_read += bytes.len();
             output.write_all(bytes.as_ref())?;
@@ -120,7 +122,7 @@ impl ArchiveReader {
     pub fn read_file_by_block(
         self,
         file_name: &str,
-    ) -> Result<impl Iterator<Item = Result<Bytes>>> {
+    ) -> Result<impl for<'me> LendingIterator<Item<'me> = Result<Bytes<'me>>>> {
         info!(r#"ArchiveReader::read_file_by_block("file_name: {file_name}")"#);
         self.read_file_by_block_with_encoding(file_name, |entry_name| {
             Some(String::from_utf8_lossy(entry_name).to_string())
@@ -131,7 +133,7 @@ impl ArchiveReader {
         self,
         file_name: &str,
         decoding: F,
-    ) -> Result<impl Iterator<Item = Result<Bytes>>>
+    ) -> Result<impl for<'me> LendingIterator<Item<'me> = Result<Bytes<'me>>>>
     where
         F: Fn(&[u8]) -> Option<String>,
     {
