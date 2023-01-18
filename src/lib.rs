@@ -1,5 +1,5 @@
 mod archive_reader;
-mod error;
+pub mod error;
 mod lending_iter;
 mod libarchive;
 
