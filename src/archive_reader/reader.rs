@@ -5,9 +5,9 @@ use std::ffi::CString;
 use std::io::Write;
 use std::path::Path;
 
-use crate::{libarchive, LendingIterator};
-
-pub type Bytes<'a> = &'a [u8];
+use crate::libarchive;
+#[cfg(feature = "lending_iter")]
+use crate::LendingIterator;
 
 pub struct ArchiveReader {
     pub(crate) handle: *mut libarchive::archive,
@@ -119,26 +119,62 @@ impl ArchiveReader {
         Ok(total_read)
     }
 
+    #[cfg(not(feature = "lending_iter"))]
     pub fn read_file_by_block(
         self,
         file_name: &str,
-    ) -> Result<impl for<'me> LendingIterator<Item<'me> = Result<Bytes<'me>>>> {
+    ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send> {
         info!(r#"ArchiveReader::read_file_by_block("file_name: {file_name}")"#);
         self.read_file_by_block_with_encoding(file_name, |entry_name| {
             Some(String::from_utf8_lossy(entry_name).to_string())
         })
     }
 
+    #[cfg(feature = "lending_iter")]
+    pub fn read_file_by_block(
+        self,
+        file_name: &str,
+    ) -> Result<impl for<'a> LendingIterator<Item<'a> = Result<&'a [u8]>> + Send> {
+        info!(r#"ArchiveReader::read_file_by_block("file_name: {file_name}")"#);
+        self.read_file_by_block_with_encoding(file_name, |entry_name| {
+            Some(String::from_utf8_lossy(entry_name).to_string())
+        })
+    }
+
+    #[cfg(feature = "lending_iter")]
     pub fn read_file_by_block_with_encoding<F>(
         self,
         file_name: &str,
         decoding: F,
-    ) -> Result<impl for<'me> LendingIterator<Item<'me> = Result<Bytes<'me>>>>
+    ) -> Result<impl for<'a> LendingIterator<Item<'a> = Result<&'a [u8]>> + Send>
+    where
+        F: Fn(&[u8]) -> Option<String>,
+    {
+        self.read_file_by_block_with_encoding_raw(file_name, decoding)
+    }
+
+    #[cfg(not(feature = "lending_iter"))]
+    pub fn read_file_by_block_with_encoding<F>(
+        self,
+        file_name: &str,
+        decoding: F,
+    ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send>
+    where
+        F: Fn(&[u8]) -> Option<String>,
+    {
+        self.read_file_by_block_with_encoding_raw(file_name, decoding)
+    }
+
+    fn read_file_by_block_with_encoding_raw<F>(
+        self,
+        file_name: &str,
+        decoding: F,
+    ) -> Result<iter::BlockReader>
     where
         F: Fn(&[u8]) -> Option<String>,
     {
         info!(
-            r#"ArchiveReader::read_file_by_blockwith_encoding(file_name: "{file_name}", decoding: _)"#
+            r#"ArchiveReader::read_file_by_block_with_encoding(file_name: "{file_name}", decoding: _)"#
         );
         for entry_name in iter::EntryIterBorrowed::new(self.handle, decoding) {
             if entry_name? == file_name {
