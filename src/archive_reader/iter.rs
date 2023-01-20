@@ -1,5 +1,5 @@
 use crate::error::{analyze_result, Error, Result};
-use crate::{libarchive, ArchiveReader, LendingIterator};
+use crate::{libarchive, ArchiveReader};
 use log::{debug, error};
 use std::ffi::CStr;
 use std::slice;
@@ -96,12 +96,8 @@ impl BlockReader {
     pub fn new(archive_reader: ArchiveReader) -> Self {
         BlockReader(archive_reader)
     }
-}
 
-impl LendingIterator for BlockReader {
-    type Item<'me> = Result<&'me [u8]>;
-
-    fn next(&mut self) -> Option<Result<&[u8]>> {
+    pub fn read_block(&mut self) -> Result<&[u8]> {
         let mut buf = std::ptr::null();
         let mut offset = 0;
         let mut size = 0;
@@ -115,19 +111,43 @@ impl LendingIterator for BlockReader {
             ) {
                 libarchive::ARCHIVE_EOF => {
                     debug!("archive_read_data_block: reaches eof");
-                    None
+                    Ok(&[])
                 }
                 result => match analyze_result(result, self.0.handle) {
                     Ok(()) => {
                         let content = slice::from_raw_parts(buf as *const u8, size);
-                        Some(Ok(content))
+                        Ok(content)
                     }
                     Err(error) => {
                         error!("archive_read_data_block error: {error}");
-                        Some(Err(error))
+                        Err(error)
                     }
                 },
             }
+        }
+    }
+}
+
+#[cfg(not(feature = "lending_iter"))]
+impl Iterator for BlockReader {
+    type Item = Result<Box<[u8]>>;
+
+    fn next(&mut self) -> Option<Result<Box<[u8]>>> {
+        match self.read_block() {
+            Ok(&[]) => None,
+            block => Some(block.map(Box::from)),
+        }
+    }
+}
+
+#[cfg(feature = "lending_iter")]
+impl crate::LendingIterator for BlockReader {
+    type Item<'me> = Result<&'me [u8]>;
+
+    fn next(&mut self) -> Option<Self::Item<'_>> {
+        match self.read_block() {
+            Ok(&[]) => None,
+            block => Some(block),
         }
     }
 }

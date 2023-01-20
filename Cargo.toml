@@ -11,3 +11,7 @@ log = "0.4"
 
 [build-dependencies]
 pkg-config = "0.3"
+
+[features]
+lending_iter = []
+

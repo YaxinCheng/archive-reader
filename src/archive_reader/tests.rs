@@ -1,6 +1,5 @@
 use super::*;
 use crate::error::Result;
-use crate::LendingIterator;
 
 const fn zip_archive() -> &'static str {
     concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/test.zip")
@@ -82,6 +81,9 @@ fn test_read_file_to_bytes(archive_path: &str, file_path: &str, expected: &[u8])
 
 #[test]
 fn test_read_by_blocks() -> Result<()> {
+    #[cfg(feature = "lending_iter")]
+    use crate::LendingIterator;
+
     let archive = ArchiveReader::open(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/test_resources/large.zip"
