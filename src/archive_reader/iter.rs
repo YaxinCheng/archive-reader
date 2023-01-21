@@ -55,40 +55,36 @@ where
     type Item = Result<String>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.handle.is_null() {
-            return None;
-        }
+        debug_assert!(!self.handle.is_null(), "EntryIterBorrowed::handle is null");
         let mut entry = std::ptr::null_mut();
-        unsafe {
-            match libarchive::archive_read_next_header(self.handle, &mut entry) {
-                libarchive::ARCHIVE_EOF => {
-                    self.handle = std::ptr::null_mut();
-                    debug!("archive_read_next_header: reaches EOF");
-                    return None;
-                }
-                result => {
-                    if let Err(error) = analyze_result(result, self.handle) {
-                        error!("archive_read_next_header error: {error}");
-                        return Some(Err(error));
-                    }
-                    debug!("archive_read_next_header: success");
-                }
-            };
-            let entry_name = libarchive::archive_entry_pathname(entry);
-            if entry_name.is_null() {
-                error!("archive_entry_pathname returns null");
-                return Some(Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "archive entry contains invalid name".to_string(),
-                )
-                .into()));
+        match unsafe { libarchive::archive_read_next_header(self.handle, &mut entry) } {
+            libarchive::ARCHIVE_EOF => {
+                debug!("archive_read_next_header: reaches EOF");
+                return None;
             }
-            match (self.decoding)(CStr::from_ptr(entry_name).to_bytes()) {
-                Some(entry_name) => Some(Ok(entry_name)),
-                None => {
-                    error!("failed to decode entry name");
-                    Some(Err(Error::Encoding))
+            result => {
+                if let Err(error) = analyze_result(result, self.handle) {
+                    error!("archive_read_next_header error: {error:?}");
+                    return Some(Err(error));
                 }
+                debug!("archive_read_next_header: success");
+            }
+        };
+        let entry_name = unsafe { libarchive::archive_entry_pathname(entry) };
+        if entry_name.is_null() {
+            error!("archive_entry_pathname returns null");
+            return Some(Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "archive entry contains invalid name".to_string(),
+            )
+            .into()));
+        }
+        let entry_name_in_bytes = unsafe { CStr::from_ptr(entry_name).to_bytes() };
+        match (self.decoding)(entry_name_in_bytes) {
+            Some(entry_name) => Some(Ok(entry_name)),
+            None => {
+                error!("failed to decode entry name");
+                Some(Err(Error::Encoding))
             }
         }
     }
@@ -114,30 +110,30 @@ impl BlockReader {
         let mut buf = std::ptr::null();
         let mut offset = 0;
         let mut size = 0;
-
-        unsafe {
-            match libarchive::archive_read_data_block(
+        match unsafe {
+            libarchive::archive_read_data_block(
                 self.reader.handle,
                 &mut buf,
                 &mut size,
                 &mut offset,
-            ) {
-                libarchive::ARCHIVE_EOF => {
-                    debug!("archive_read_data_block: reaches eof");
-                    self.ended = true;
-                    Ok(&[])
-                }
-                result => match analyze_result(result, self.reader.handle) {
-                    Ok(()) => {
-                        let content = slice::from_raw_parts(buf as *const u8, size);
-                        Ok(content)
-                    }
-                    Err(error) => {
-                        error!("archive_read_data_block error: {error}");
-                        Err(error)
-                    }
-                },
+            )
+        } {
+            libarchive::ARCHIVE_EOF => {
+                debug!("archive_read_data_block: reaches eof");
+                self.ended = true;
+                Ok(&[])
             }
+            result => match analyze_result(result, self.reader.handle) {
+                Ok(()) => {
+                    let content = unsafe { slice::from_raw_parts(buf as *const u8, size) };
+                    Ok(content)
+                }
+                Err(error) => {
+                    error!("archive_read_data_block error: {error:?}");
+                    self.ended = true;
+                    Err(error)
+                }
+            },
         }
     }
 }

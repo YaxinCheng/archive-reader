@@ -203,7 +203,7 @@ impl ArchiveReader {
 impl Drop for ArchiveReader {
     fn drop(&mut self) {
         if let Err(error) = self.clean() {
-            error!("Failed to clean up ArchiveReader: {error}")
+            error!("Failed to clean up ArchiveReader: {error:?}")
         }
     }
 }
