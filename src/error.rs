@@ -3,7 +3,7 @@ use std::ffi::CStr;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("IO error: {0}")]
+    #[error("IO error: {0:?}")]
     Io(#[from] std::io::Error),
     #[error("Extraction error: {0}")]
     Extraction(String),
@@ -11,6 +11,8 @@ pub enum Error {
     PathNotUtf8,
     #[error("Bytes cannot be decoded")]
     Encoding,
+    #[error(r#"File name {0} is not found in archive"#)]
+    NotFound(String),
     #[error("Unknown error happened")]
     Unknown,
 }
