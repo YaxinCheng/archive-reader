@@ -88,16 +88,19 @@ fn test_read_by_blocks() -> Result<()> {
         env!("CARGO_MANIFEST_DIR"),
         "/test_resources/large.zip"
     ))?;
+    let expected = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/test_resources/large.txt"
+    ));
     let mut num_of_blocks = 0_usize;
-    let mut total_size = 0_usize;
+    let mut bytes = Vec::new();
     let mut blocks = archive.read_file_by_block("large.txt")?;
     while let Some(block) = blocks.next() {
         let block = block?;
         num_of_blocks += 1;
-        total_size += block.len();
+        bytes.extend(block.into_iter());
     }
     assert!(num_of_blocks > 1);
-    let expected_size = 819201;
-    assert_eq!(total_size, expected_size);
+    assert_eq!(expected, bytes.as_slice());
     Ok(())
 }

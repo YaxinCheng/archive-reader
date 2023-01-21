@@ -3,7 +3,7 @@ use std::ffi::CStr;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("IO error: {0}")]
+    #[error("IO error: {0:?}")]
     Io(#[from] std::io::Error),
     #[error("Extraction error: {0}")]
     Extraction(String),

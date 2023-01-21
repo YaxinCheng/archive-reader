@@ -55,10 +55,14 @@ where
     type Item = Result<String>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.handle.is_null() {
+            return None;
+        }
         let mut entry = std::ptr::null_mut();
         unsafe {
             match libarchive::archive_read_next_header(self.handle, &mut entry) {
                 libarchive::ARCHIVE_EOF => {
+                    self.handle = std::ptr::null_mut();
                     debug!("archive_read_next_header: reaches EOF");
                     return None;
                 }
@@ -90,30 +94,40 @@ where
     }
 }
 
-pub struct BlockReader(ArchiveReader);
+pub struct BlockReader {
+    reader: ArchiveReader,
+    ended: bool,
+}
 
 impl BlockReader {
     pub fn new(archive_reader: ArchiveReader) -> Self {
-        BlockReader(archive_reader)
+        BlockReader {
+            reader: archive_reader,
+            ended: false,
+        }
     }
 
     pub fn read_block(&mut self) -> Result<&[u8]> {
+        if self.ended {
+            return Ok(&[]);
+        }
         let mut buf = std::ptr::null();
         let mut offset = 0;
         let mut size = 0;
 
         unsafe {
             match libarchive::archive_read_data_block(
-                self.0.handle,
+                self.reader.handle,
                 &mut buf,
                 &mut size,
                 &mut offset,
             ) {
                 libarchive::ARCHIVE_EOF => {
                     debug!("archive_read_data_block: reaches eof");
+                    self.ended = true;
                     Ok(&[])
                 }
-                result => match analyze_result(result, self.0.handle) {
+                result => match analyze_result(result, self.reader.handle) {
                     Ok(()) => {
                         let content = slice::from_raw_parts(buf as *const u8, size);
                         Ok(content)
@@ -134,7 +148,7 @@ impl Iterator for BlockReader {
 
     fn next(&mut self) -> Option<Result<Box<[u8]>>> {
         match self.read_block() {
-            Ok(&[]) => None,
+            Ok(block) if block.is_empty() => None,
             block => Some(block.map(Box::from)),
         }
     }
@@ -146,7 +160,7 @@ impl crate::LendingIterator for BlockReader {
 
     fn next(&mut self) -> Option<Self::Item<'_>> {
         match self.read_block() {
-            Ok(&[]) => None,
+            Ok(block) if block.is_empty() => None,
             block => Some(block),
         }
     }
