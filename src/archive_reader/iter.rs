@@ -148,7 +148,7 @@ impl Iterator for BlockReader {
 
     fn next(&mut self) -> Option<Result<Box<[u8]>>> {
         match self.read_block() {
-            Ok(block) if block.is_empty() => None,
+            Ok(&[]) => None,
             block => Some(block.map(Box::from)),
         }
     }
@@ -160,7 +160,7 @@ impl crate::LendingIterator for BlockReader {
 
     fn next(&mut self) -> Option<Self::Item<'_>> {
         match self.read_block() {
-            Ok(block) if block.is_empty() => None,
+            Ok(&[]) => None,
             block => Some(block),
         }
     }
