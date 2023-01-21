@@ -11,6 +11,8 @@ pub enum Error {
     PathNotUtf8,
     #[error("Bytes cannot be decoded")]
     Encoding,
+    #[error(r#"File name {0} is not found in archive"#)]
+    NotFound(String),
     #[error("Unknown error happened")]
     Unknown,
 }

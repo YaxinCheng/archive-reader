@@ -176,12 +176,19 @@ impl ArchiveReader {
         info!(
             r#"ArchiveReader::read_file_by_block_with_encoding(file_name: "{file_name}", decoding: _)"#
         );
-        for entry_name in iter::EntryIterBorrowed::new(self.handle, decoding) {
-            if entry_name? == file_name {
-                break;
-            }
+        let found = iter::EntryIterBorrowed::new(self.handle, decoding)
+            .find(|entry_name| {
+                entry_name
+                    .as_ref()
+                    .map(|name| name == file_name)
+                    .unwrap_or_default()
+            })
+            .transpose()?;
+        if found.is_some() {
+            Ok(iter::BlockReader::new(self))
+        } else {
+            Err(Error::NotFound(file_name.to_string()))
         }
-        Ok(iter::BlockReader::new(self))
     }
 
     fn clean(&self) -> Result<()> {
