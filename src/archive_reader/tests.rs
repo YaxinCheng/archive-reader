@@ -86,7 +86,8 @@ fn test_empty_file() -> Result<()> {
 
 fn test_read_file_to_bytes(archive_path: &str, file_path: &str, expected: &[u8]) -> Result<()> {
     let archive = ArchiveReader::open(archive_path)?;
-    let bytes = archive.read_file_to_bytes(file_path)?;
+    let mut bytes = vec![];
+    let _ = archive.read_file(file_path, &mut bytes)?;
     assert_eq!(bytes, expected);
     Ok(())
 }

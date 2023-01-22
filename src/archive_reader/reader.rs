@@ -84,15 +84,6 @@ impl ArchiveReader {
         iter::EntryIter::new(self, decoding)
     }
 
-    /// `read_file_to_bytes` locates a file based on its file name in UTF8 and reads its content back
-    /// as a Vec of bytes.
-    pub fn read_file_to_bytes(self, file_name: &str) -> Result<Vec<u8>> {
-        info!(r#"ArchiveReader::read_file_to_bytes("file_name: {file_name}")"#);
-        let mut combined = Vec::new();
-        self.read_file(file_name, &mut combined)?;
-        Ok(combined)
-    }
-
     /// `read_file` locates a file based on its file name in UTF8 and reads its content
     /// into a provided writable output.
     /// Eventually, it returns the size for total bytes read.
@@ -106,25 +97,6 @@ impl ArchiveReader {
             output.write_all(bytes.as_ref())?;
         }
         Ok(total_read)
-    }
-
-    /// `read_file_to_bytes_with_encoding` locates a file based on its file name
-    /// in provided encoding and reads its content
-    /// into vec byte.
-    pub fn read_file_to_bytes_with_encoding<F>(
-        self,
-        file_name: &str,
-        decoding: F,
-    ) -> Result<Vec<u8>>
-    where
-        F: Fn(&[u8]) -> Option<String>,
-    {
-        info!(
-            r#"ArchiveReader::read_file_to_bytes_with_encoding("file_name: {file_name}", decoding: _)"#
-        );
-        let mut combined = Vec::new();
-        self.read_file_with_encoding(file_name, &mut combined, decoding)?;
-        Ok(combined)
     }
 
     /// `read_file_with_encoding` locates a file based on its file name
