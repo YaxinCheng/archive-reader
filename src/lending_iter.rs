@@ -1,3 +1,4 @@
+#[cfg(feature = "lending_iter")]
 /// `LendingIterator` is a trait that uses the new GAT feature to iterate through
 /// items owned by self. It is a simulation of
 /// [std::iter::Iterator](https://doc.rust-lang.org/std/iter/trait.Iterator.html)
