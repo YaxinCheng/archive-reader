@@ -90,8 +90,10 @@ where
     }
 }
 
-pub struct BlockReader {
+/// `BlockReader` is an iterator that reads an archive entry block by block.
+pub(crate) struct BlockReader {
     reader: ArchiveReader,
+    /// ended is set to true when the iterator has reached its end.
     ended: bool,
 }
 
