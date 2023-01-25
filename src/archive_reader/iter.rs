@@ -1,6 +1,8 @@
 use crate::error::{analyze_result, Error, Result};
+use crate::LendingIterator;
 use crate::{libarchive, ArchiveReader};
 use log::{debug, error};
+use std::borrow::Cow;
 use std::ffi::CStr;
 use std::slice;
 
@@ -12,7 +14,7 @@ pub(crate) struct EntryIter<F> {
 
 impl<F> EntryIter<F>
 where
-    F: Fn(&[u8]) -> Option<String>,
+    F: Fn(&[u8]) -> Option<Cow<'_, str>>,
 {
     pub fn new(reader: ArchiveReader, decoding: F) -> Self {
         let iterator = EntryIterBorrowed::new(reader.handle, decoding);
@@ -25,12 +27,12 @@ where
 
 impl<F> Iterator for EntryIter<F>
 where
-    F: Fn(&[u8]) -> Option<String>,
+    F: Fn(&[u8]) -> Option<Cow<'_, str>>,
 {
     type Item = Result<String>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.iterator.next()
+        Some(self.iterator.next()?.map(String::from))
     }
 }
 
@@ -41,20 +43,20 @@ pub(crate) struct EntryIterBorrowed<F> {
 
 impl<F> EntryIterBorrowed<F>
 where
-    F: Fn(&[u8]) -> Option<String>,
+    F: Fn(&[u8]) -> Option<Cow<'_, str>>,
 {
     pub fn new(handle: *mut libarchive::archive, decoding: F) -> Self {
         Self { handle, decoding }
     }
 }
 
-impl<F> Iterator for EntryIterBorrowed<F>
+impl<F> LendingIterator for EntryIterBorrowed<F>
 where
-    F: Fn(&[u8]) -> Option<String>,
+    F: Fn(&[u8]) -> Option<Cow<'_, str>>,
 {
-    type Item = Result<String>;
+    type Item<'a> = Result<Cow<'a, str>> where F: 'a;
 
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<Self::Item<'_>> {
         debug_assert!(!self.handle.is_null(), "EntryIterBorrowed::handle is null");
         let mut entry = std::ptr::null_mut();
         match unsafe { libarchive::archive_read_next_header(self.handle, &mut entry) } {

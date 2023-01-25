@@ -1,12 +1,12 @@
 use super::iter;
 use crate::error::{analyze_result, path_does_not_exist, Error, Result};
 use log::{error, info};
+use std::borrow::Cow;
 use std::ffi::CString;
 use std::io::Write;
 use std::path::Path;
 
 use crate::libarchive;
-#[cfg(feature = "lending_iter")]
 use crate::LendingIterator;
 
 /// `ArchiveReader` is a type that handles the archive reading task.
@@ -22,20 +22,24 @@ pub struct ArchiveReader {
 // pointer to an libarchive struct is safe to move.
 unsafe impl Send for ArchiveReader {}
 
-/// BLOCK_SIZE is the size for each block to be read in through ArchiveReader.
-const BLOCK_SIZE: usize = 16 * 1024;
-
 impl ArchiveReader {
     /// `open` is the constructor for ArchiveReader.
     /// It takes in the path to the archive.
     pub fn open<P: AsRef<Path>>(archive_path: P) -> Result<Self> {
+        Self::open_with_block_size(archive_path, /*block_size*/ 1024 * 1024)
+    }
+
+    pub fn open_with_block_size<P: AsRef<Path>>(
+        archive_path: P,
+        block_size: usize,
+    ) -> Result<Self> {
         let archive_path = archive_path.as_ref();
         info!(
             r#"ArchiveReader::open(archive_path: "{}")"#,
             archive_path.display()
         );
         Self::path_exists(archive_path)?;
-        let handle = Self::create_handle(archive_path)?;
+        let handle = Self::create_handle(archive_path, block_size)?;
         Ok(ArchiveReader { handle })
     }
 
@@ -49,7 +53,7 @@ impl ArchiveReader {
         Ok(())
     }
 
-    fn create_handle(archive_path: &Path) -> Result<*mut libarchive::archive> {
+    fn create_handle(archive_path: &Path, block_size: usize) -> Result<*mut libarchive::archive> {
         let archive_path = CString::new(archive_path.to_str().ok_or(Error::PathNotUtf8)?)
             .expect("An existing path cannot be null");
         unsafe {
@@ -58,7 +62,7 @@ impl ArchiveReader {
             analyze_result(libarchive::archive_read_support_format_raw(handle), handle)?;
             analyze_result(libarchive::archive_read_support_format_all(handle), handle)?;
             analyze_result(
-                libarchive::archive_read_open_filename(handle, archive_path.as_ptr(), BLOCK_SIZE),
+                libarchive::archive_read_open_filename(handle, archive_path.as_ptr(), block_size),
                 handle,
             )?;
             Ok(handle)
@@ -68,7 +72,7 @@ impl ArchiveReader {
     /// `list_file_names` extracts file names from the target archive using UTF8 encoding.
     pub fn list_file_names(self) -> impl Iterator<Item = Result<String>> {
         info!("ArchiveReader::list_file_names()");
-        self.list_file_names_with_encoding(|bytes| Some(String::from_utf8_lossy(bytes).to_string()))
+        self.list_file_names_with_encoding(|bytes| Some(String::from_utf8_lossy(bytes)))
     }
 
     /// `list_file_names_with_encoding` extracts file names from the target archive
@@ -78,7 +82,7 @@ impl ArchiveReader {
         decoding: F,
     ) -> impl Iterator<Item = Result<String>>
     where
-        F: Fn(&[u8]) -> Option<String>,
+        F: Fn(&[u8]) -> Option<Cow<'_, str>>,
     {
         info!("ArchiveReader::list_file_names_with_encoding(decoding: _)");
         iter::EntryIter::new(self, decoding)
@@ -111,7 +115,7 @@ impl ArchiveReader {
     ) -> Result<usize>
     where
         W: Write,
-        F: Fn(&[u8]) -> Option<String>,
+        F: Fn(&[u8]) -> Option<Cow<'_, str>>,
     {
         info!(
             r#"ArchiveReader::read_file_with_encoding("file_name: {file_name}", output: _, decoding: _)"#
@@ -135,7 +139,7 @@ impl ArchiveReader {
     ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send> {
         info!(r#"ArchiveReader::read_file_by_block("file_name: {file_name}")"#);
         self.read_file_by_block_with_encoding(file_name, |entry_name| {
-            Some(String::from_utf8_lossy(entry_name).to_string())
+            Some(String::from_utf8_lossy(entry_name))
         })
     }
 
@@ -148,7 +152,7 @@ impl ArchiveReader {
     ) -> Result<impl for<'a> LendingIterator<Item<'a> = Result<&'a [u8]>> + Send> {
         info!(r#"ArchiveReader::read_file_by_block("file_name: {file_name}")"#);
         self.read_file_by_block_with_encoding(file_name, |entry_name| {
-            Some(String::from_utf8_lossy(entry_name).to_string())
+            Some(String::from_utf8_lossy(entry_name))
         })
     }
 
@@ -162,7 +166,7 @@ impl ArchiveReader {
         decoding: F,
     ) -> Result<impl for<'a> LendingIterator<Item<'a> = Result<&'a [u8]>> + Send>
     where
-        F: Fn(&[u8]) -> Option<String>,
+        F: Fn(&[u8]) -> Option<Cow<'_, str>>,
     {
         self.read_file_by_block_with_encoding_raw(file_name, decoding)
     }
@@ -177,7 +181,7 @@ impl ArchiveReader {
         decoding: F,
     ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send>
     where
-        F: Fn(&[u8]) -> Option<String>,
+        F: Fn(&[u8]) -> Option<Cow<'_, str>>,
     {
         self.read_file_by_block_with_encoding_raw(file_name, decoding)
     }
@@ -188,20 +192,20 @@ impl ArchiveReader {
         decoding: F,
     ) -> Result<iter::BlockReader>
     where
-        F: Fn(&[u8]) -> Option<String>,
+        F: Fn(&[u8]) -> Option<Cow<'_, str>>,
     {
         info!(
             r#"ArchiveReader::read_file_by_block_with_encoding(file_name: "{file_name}", decoding: _)"#
         );
-        let found = iter::EntryIterBorrowed::new(self.handle, decoding)
-            .find(|entry_name| {
-                entry_name
-                    .as_ref()
-                    .map(|name| name == file_name)
-                    .unwrap_or_default()
-            })
-            .transpose()?;
-        if found.is_some() {
+        let mut entries = iter::EntryIterBorrowed::new(self.handle, decoding);
+        let mut found = false;
+        while let Some(entry_name) = entries.next() {
+            if entry_name? == file_name {
+                found = true;
+                break;
+            }
+        }
+        if found {
             Ok(iter::BlockReader::new(self))
         } else {
             Err(Error::NotFound(file_name.to_string()))
