@@ -1,13 +1,12 @@
 use super::iter;
 use crate::error::{analyze_result, path_does_not_exist, Error, Result};
 use log::{error, info};
-use std::borrow::Cow;
 use std::ffi::CString;
 use std::io::Write;
 use std::path::Path;
 
-use crate::libarchive;
 use crate::LendingIterator;
+use crate::{libarchive, DecodingFn};
 
 /// `ArchiveReader` is a type that handles the archive reading task.
 /// It wraps partial functionalities of libarchive to read archives.
@@ -15,7 +14,7 @@ use crate::LendingIterator;
 /// # Note:
 /// As libarchive does not support random access,
 /// every function in ArchiveReader consumes itself.
-pub struct ArchiveReader {
+pub(crate) struct ArchiveReader {
     pub(crate) handle: *mut libarchive::archive,
 }
 
@@ -25,14 +24,7 @@ unsafe impl Send for ArchiveReader {}
 impl ArchiveReader {
     /// `open` is the constructor for ArchiveReader.
     /// It takes in the path to the archive.
-    pub fn open<P: AsRef<Path>>(archive_path: P) -> Result<Self> {
-        Self::open_with_block_size(archive_path, /*block_size*/ 1024 * 1024)
-    }
-
-    pub fn open_with_block_size<P: AsRef<Path>>(
-        archive_path: P,
-        block_size: usize,
-    ) -> Result<Self> {
+    pub(crate) fn open<P: AsRef<Path>>(archive_path: P, block_size: usize) -> Result<Self> {
         let archive_path = archive_path.as_ref();
         info!(
             r#"ArchiveReader::open(archive_path: "{}")"#,
@@ -69,59 +61,32 @@ impl ArchiveReader {
         }
     }
 
-    /// `list_file_names` extracts file names from the target archive using UTF8 encoding.
-    pub fn list_file_names(self) -> impl Iterator<Item = Result<String>> {
-        info!("ArchiveReader::list_file_names()");
-        self.list_file_names_with_encoding(|bytes| Some(String::from_utf8_lossy(bytes)))
-    }
-
-    /// `list_file_names_with_encoding` extracts file names from the target archive
+    /// `list_file_names` extracts file names from the target archive
     /// using custom decoding function.
-    pub fn list_file_names_with_encoding<F>(
+    pub(crate) fn list_file_names(
         self,
-        decoding: F,
-    ) -> impl Iterator<Item = Result<String>>
-    where
-        F: Fn(&[u8]) -> Option<Cow<'_, str>>,
-    {
+        decoding: DecodingFn,
+    ) -> impl Iterator<Item = Result<String>> {
         info!("ArchiveReader::list_file_names_with_encoding(decoding: _)");
         iter::EntryIter::new(self, decoding)
     }
 
-    /// `read_file` locates a file based on its file name in UTF8 and reads its content
-    /// into a provided writable output.
-    /// Eventually, it returns the size for total bytes read.
-    pub fn read_file(self, file_name: &str, mut output: impl Write) -> Result<usize> {
-        info!(r#"ArchiveReader::read_file("file_name: {file_name}", output: _)"#);
-        let mut total_read = 0;
-        let mut blocks = self.read_file_by_block(file_name)?;
-        while let Some(bytes) = blocks.next() {
-            let bytes = bytes?;
-            total_read += bytes.len();
-            output.write_all(bytes.as_ref())?;
-        }
-        Ok(total_read)
-    }
-
-    /// `read_file_with_encoding` locates a file based on its file name
+    /// `read_file` locates a file based on its file name
     /// in provided encoding and reads its content
     /// into a provided writable output.
     /// Eventually, it returns the size for total bytes read.
-    pub fn read_file_with_encoding<W, F>(
+    pub(crate) fn read_file<W>(
         self,
         file_name: &str,
         mut output: W,
-        decoding: F,
+        decoding: DecodingFn,
     ) -> Result<usize>
     where
         W: Write,
-        F: Fn(&[u8]) -> Option<Cow<'_, str>>,
     {
-        info!(
-            r#"ArchiveReader::read_file_with_encoding("file_name: {file_name}", output: _, decoding: _)"#
-        );
+        info!(r#"ArchiveReader::read_file("file_name: {file_name}", output: _, decoding: _)"#);
         let mut total_read = 0;
-        let mut blocks = self.read_file_by_block_with_encoding(file_name, decoding)?;
+        let mut blocks = self.read_file_by_block(file_name, decoding)?;
         while let Some(bytes) = blocks.next() {
             let bytes = bytes?;
             total_read += bytes.len();
@@ -130,70 +95,35 @@ impl ArchiveReader {
         Ok(total_read)
     }
 
-    /// `read_file_by_block` locates a file based on its UTF8 encoded file name,
-    /// and reads its content as an iterator of blocks.
-    #[cfg(not(feature = "lending_iter"))]
-    pub fn read_file_by_block(
-        self,
-        file_name: &str,
-    ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send> {
-        info!(r#"ArchiveReader::read_file_by_block("file_name: {file_name}")"#);
-        self.read_file_by_block_with_encoding(file_name, |entry_name| {
-            Some(String::from_utf8_lossy(entry_name))
-        })
-    }
-
-    /// `read_file_by_block` locates a file based on its UTF8 encoded file name,
+    /// `read_file_by_block_with_encoding` locates a file based on its file name
+    /// with custom decoding function,
     /// and reads its content as a lending iterator of blocks.
     #[cfg(feature = "lending_iter")]
-    pub fn read_file_by_block(
+    pub(crate) fn read_file_by_block(
         self,
         file_name: &str,
+        decoding: DecodingFn,
     ) -> Result<impl for<'a> LendingIterator<Item<'a> = Result<&'a [u8]>> + Send> {
-        info!(r#"ArchiveReader::read_file_by_block("file_name: {file_name}")"#);
-        self.read_file_by_block_with_encoding(file_name, |entry_name| {
-            Some(String::from_utf8_lossy(entry_name))
-        })
-    }
-
-    /// `read_file_by_block_with_encoding` locates a file based on its file name
-    /// with custom decoding function,
-    /// and reads its content as a lending iterator of blocks.
-    #[cfg(feature = "lending_iter")]
-    pub fn read_file_by_block_with_encoding<F>(
-        self,
-        file_name: &str,
-        decoding: F,
-    ) -> Result<impl for<'a> LendingIterator<Item<'a> = Result<&'a [u8]>> + Send>
-    where
-        F: Fn(&[u8]) -> Option<Cow<'_, str>>,
-    {
-        self.read_file_by_block_with_encoding_raw(file_name, decoding)
+        self.read_file_by_block_raw(file_name, decoding)
     }
 
     /// `read_file_by_block_with_encoding` locates a file based on its file name
     /// with custom decoding function,
     /// and reads its content as an iterator of blocks.
     #[cfg(not(feature = "lending_iter"))]
-    pub fn read_file_by_block_with_encoding<F>(
+    pub(crate) fn read_file_by_block(
         self,
         file_name: &str,
-        decoding: F,
-    ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send>
-    where
-        F: Fn(&[u8]) -> Option<Cow<'_, str>>,
-    {
-        self.read_file_by_block_with_encoding_raw(file_name, decoding)
+        decoding: DecodingFn,
+    ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send> {
+        self.read_file_by_block_raw(file_name, decoding)
     }
 
-    fn read_file_by_block_with_encoding_raw<F>(
+    fn read_file_by_block_raw(
         self,
         file_name: &str,
-        decoding: F,
-    ) -> Result<iter::BlockReader>
-    where
-        F: Fn(&[u8]) -> Option<Cow<'_, str>>,
-    {
+        decoding: DecodingFn,
+    ) -> Result<iter::BlockReader> {
         info!(
             r#"ArchiveReader::read_file_by_block_with_encoding(file_name: "{file_name}", decoding: _)"#
         );

@@ -1,22 +1,20 @@
+use super::reader::ArchiveReader;
 use crate::error::{analyze_result, Error, Result};
-use crate::LendingIterator;
-use crate::{libarchive, ArchiveReader};
+use crate::libarchive;
+use crate::{DecodingFn, LendingIterator};
 use log::{debug, error};
 use std::borrow::Cow;
 use std::ffi::CStr;
 use std::slice;
 
-pub(crate) struct EntryIter<F> {
+pub(crate) struct EntryIter {
     /// _reader_guard prevents the ArchiveReader from drop until the Iterator itself is dropped.
     _reader_guard: ArchiveReader,
-    iterator: EntryIterBorrowed<F>,
+    iterator: EntryIterBorrowed,
 }
 
-impl<F> EntryIter<F>
-where
-    F: Fn(&[u8]) -> Option<Cow<'_, str>>,
-{
-    pub fn new(reader: ArchiveReader, decoding: F) -> Self {
+impl EntryIter {
+    pub fn new(reader: ArchiveReader, decoding: DecodingFn) -> Self {
         let iterator = EntryIterBorrowed::new(reader.handle, decoding);
         Self {
             _reader_guard: reader,
@@ -25,10 +23,7 @@ where
     }
 }
 
-impl<F> Iterator for EntryIter<F>
-where
-    F: Fn(&[u8]) -> Option<Cow<'_, str>>,
-{
+impl Iterator for EntryIter {
     type Item = Result<String>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -36,25 +31,19 @@ where
     }
 }
 
-pub(crate) struct EntryIterBorrowed<F> {
+pub(crate) struct EntryIterBorrowed {
     handle: *mut libarchive::archive,
-    decoding: F,
+    decoding: DecodingFn,
 }
 
-impl<F> EntryIterBorrowed<F>
-where
-    F: Fn(&[u8]) -> Option<Cow<'_, str>>,
-{
-    pub fn new(handle: *mut libarchive::archive, decoding: F) -> Self {
+impl EntryIterBorrowed {
+    pub fn new(handle: *mut libarchive::archive, decoding: DecodingFn) -> Self {
         Self { handle, decoding }
     }
 }
 
-impl<F> LendingIterator for EntryIterBorrowed<F>
-where
-    F: Fn(&[u8]) -> Option<Cow<'_, str>>,
-{
-    type Item<'a> = Result<Cow<'a, str>> where F: 'a;
+impl LendingIterator for EntryIterBorrowed {
+    type Item<'a> = Result<Cow<'a, str>>;
 
     fn next(&mut self) -> Option<Self::Item<'_>> {
         debug_assert!(!self.handle.is_null(), "EntryIterBorrowed::handle is null");
