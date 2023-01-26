@@ -133,6 +133,7 @@ impl Archive {
 
 // accessor
 impl Archive {
+    /// `path` returns the archive file path.
     pub fn path(&self) -> &Path {
         &self.file_path
     }
