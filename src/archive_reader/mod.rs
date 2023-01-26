@@ -1,6 +1,7 @@
+mod archive;
 mod iter;
 mod reader;
 #[cfg(test)]
 mod tests;
 
-pub use reader::*;
+pub use archive::*;

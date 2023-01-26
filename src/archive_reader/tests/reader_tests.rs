@@ -1,17 +1,6 @@
 use super::*;
+use crate::archive_reader::reader::ArchiveReader;
 use crate::error::Result;
-
-const fn zip_archive() -> &'static str {
-    concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/test.zip")
-}
-
-const fn seven_z_archive() -> &'static str {
-    concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/test.7z")
-}
-
-const fn rar_archive() -> &'static str {
-    concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/test.rar")
-}
 
 #[test]
 fn test_list_file_names_zip() -> Result<()> {
@@ -29,10 +18,10 @@ fn test_list_file_names_zip() -> Result<()> {
 fn test_list_file_names_7z() -> Result<()> {
     let expected = [
         "content/",
-        "content/first",
-        "content/third",
         "content/nested/",
+        "content/first",
         "content/nested/second",
+        "content/third",
     ];
     test_list_file_names(seven_z_archive(), &expected)
 }
@@ -40,19 +29,20 @@ fn test_list_file_names_7z() -> Result<()> {
 #[test]
 fn test_list_file_names_rar() -> Result<()> {
     let expected = [
-        "content",
         "content/first",
         "content/third",
-        "content/nested",
         "content/nested/second",
+        "content/nested",
+        "content",
     ];
     test_list_file_names(rar_archive(), &expected)
 }
 
 fn test_list_file_names(path: &str, expected: &[&str]) -> Result<()> {
-    let archive = ArchiveReader::open(path)?;
-    let mut file_names = archive.list_file_names().collect::<Result<Vec<_>>>()?;
-    file_names.sort_by_key(|file_name| file_name.len());
+    let archive = ArchiveReader::open(path, 1024)?;
+    let file_names = archive
+        .list_file_names(decode_utf8)
+        .collect::<Result<Vec<_>>>()?;
     assert_eq!(file_names, expected);
     Ok(())
 }
@@ -85,9 +75,9 @@ fn test_empty_file() -> Result<()> {
 }
 
 fn test_read_file_to_bytes(archive_path: &str, file_path: &str, expected: &[u8]) -> Result<()> {
-    let archive = ArchiveReader::open(archive_path)?;
+    let archive = ArchiveReader::open(archive_path, 1024)?;
     let mut bytes = vec![];
-    let _ = archive.read_file(file_path, &mut bytes)?;
+    let _ = archive.read_file(file_path, &mut bytes, decode_utf8)?;
     assert_eq!(bytes, expected);
     Ok(())
 }
@@ -97,17 +87,17 @@ fn test_read_by_blocks() -> Result<()> {
     #[cfg(feature = "lending_iter")]
     use crate::LendingIterator;
 
-    let archive = ArchiveReader::open(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/test_resources/large.zip"
-    ))?;
+    let archive = ArchiveReader::open(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/large.zip"),
+        1024,
+    )?;
     let expected = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/test_resources/large.txt"
     ));
     let mut num_of_blocks = 0_usize;
     let mut bytes = Vec::new();
-    let mut blocks = archive.read_file_by_block("large.txt")?;
+    let mut blocks = archive.read_file_by_block("large.txt", decode_utf8)?;
     while let Some(block) = blocks.next() {
         let block = block?;
         num_of_blocks += 1;
@@ -123,11 +113,11 @@ fn test_empty_by_block() -> Result<()> {
     #[cfg(feature = "lending_iter")]
     use crate::LendingIterator;
 
-    let archive = ArchiveReader::open(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/test_resources/empty.zip"
-    ))?;
-    let mut blocks = archive.read_file_by_block("empty")?;
+    let archive = ArchiveReader::open(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/empty.zip"),
+        1024,
+    )?;
+    let mut blocks = archive.read_file_by_block("empty", decode_utf8)?;
     let mut number_of_blocks = 0;
     let mut bytes = Vec::<u8>::new();
     while let Some(block) = blocks.next() {

@@ -1,20 +1,20 @@
+use super::reader::ArchiveReader;
 use crate::error::{analyze_result, Error, Result};
-use crate::{libarchive, ArchiveReader};
+use crate::libarchive;
+use crate::{Decoder, LendingIterator};
 use log::{debug, error};
+use std::borrow::Cow;
 use std::ffi::CStr;
 use std::slice;
 
-pub(crate) struct EntryIter<F> {
+pub(crate) struct EntryIter {
     /// _reader_guard prevents the ArchiveReader from drop until the Iterator itself is dropped.
     _reader_guard: ArchiveReader,
-    iterator: EntryIterBorrowed<F>,
+    iterator: EntryIterBorrowed,
 }
 
-impl<F> EntryIter<F>
-where
-    F: Fn(&[u8]) -> Option<String>,
-{
-    pub fn new(reader: ArchiveReader, decoding: F) -> Self {
+impl EntryIter {
+    pub fn new(reader: ArchiveReader, decoding: Decoder) -> Self {
         let iterator = EntryIterBorrowed::new(reader.handle, decoding);
         Self {
             _reader_guard: reader,
@@ -23,38 +23,29 @@ where
     }
 }
 
-impl<F> Iterator for EntryIter<F>
-where
-    F: Fn(&[u8]) -> Option<String>,
-{
+impl Iterator for EntryIter {
     type Item = Result<String>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.iterator.next()
+        Some(self.iterator.next()?.map(String::from))
     }
 }
 
-pub(crate) struct EntryIterBorrowed<F> {
+pub(crate) struct EntryIterBorrowed {
     handle: *mut libarchive::archive,
-    decoding: F,
+    decoding: Decoder,
 }
 
-impl<F> EntryIterBorrowed<F>
-where
-    F: Fn(&[u8]) -> Option<String>,
-{
-    pub fn new(handle: *mut libarchive::archive, decoding: F) -> Self {
+impl EntryIterBorrowed {
+    pub fn new(handle: *mut libarchive::archive, decoding: Decoder) -> Self {
         Self { handle, decoding }
     }
 }
 
-impl<F> Iterator for EntryIterBorrowed<F>
-where
-    F: Fn(&[u8]) -> Option<String>,
-{
-    type Item = Result<String>;
+impl LendingIterator for EntryIterBorrowed {
+    type Item<'a> = Result<Cow<'a, str>>;
 
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<Self::Item<'_>> {
         debug_assert!(!self.handle.is_null(), "EntryIterBorrowed::handle is null");
         let mut entry = std::ptr::null_mut();
         match unsafe { libarchive::archive_read_next_header(self.handle, &mut entry) } {
