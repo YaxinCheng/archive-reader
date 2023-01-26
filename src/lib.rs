@@ -34,4 +34,4 @@ pub use lending_iter::LendingIterator;
 #[cfg(not(feature = "lending_iter"))]
 use lending_iter::LendingIterator;
 
-type DecodingFn = fn(&[u8]) -> Option<std::borrow::Cow<'_, str>>;
+type Decoder = fn(&[u8]) -> Option<std::borrow::Cow<'_, str>>;

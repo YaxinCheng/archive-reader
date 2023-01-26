@@ -6,7 +6,7 @@ use std::io::Write;
 use std::path::Path;
 
 use crate::LendingIterator;
-use crate::{libarchive, DecodingFn};
+use crate::{libarchive, Decoder};
 
 /// `ArchiveReader` is a type that handles the archive reading task.
 /// It wraps partial functionalities of libarchive to read archives.
@@ -63,10 +63,7 @@ impl ArchiveReader {
 
     /// `list_file_names` extracts file names from the target archive
     /// using custom decoding function.
-    pub(crate) fn list_file_names(
-        self,
-        decoding: DecodingFn,
-    ) -> impl Iterator<Item = Result<String>> {
+    pub(crate) fn list_file_names(self, decoding: Decoder) -> impl Iterator<Item = Result<String>> {
         info!("ArchiveReader::list_file_names_with_encoding(decoding: _)");
         iter::EntryIter::new(self, decoding)
     }
@@ -79,7 +76,7 @@ impl ArchiveReader {
         self,
         file_name: &str,
         mut output: W,
-        decoding: DecodingFn,
+        decoding: Decoder,
     ) -> Result<usize>
     where
         W: Write,
@@ -102,7 +99,7 @@ impl ArchiveReader {
     pub(crate) fn read_file_by_block(
         self,
         file_name: &str,
-        decoding: DecodingFn,
+        decoding: Decoder,
     ) -> Result<impl for<'a> LendingIterator<Item<'a> = Result<&'a [u8]>> + Send> {
         self.read_file_by_block_raw(file_name, decoding)
     }
@@ -114,7 +111,7 @@ impl ArchiveReader {
     pub(crate) fn read_file_by_block(
         self,
         file_name: &str,
-        decoding: DecodingFn,
+        decoding: Decoder,
     ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send> {
         self.read_file_by_block_raw(file_name, decoding)
     }
@@ -122,7 +119,7 @@ impl ArchiveReader {
     fn read_file_by_block_raw(
         self,
         file_name: &str,
-        decoding: DecodingFn,
+        decoding: Decoder,
     ) -> Result<iter::BlockReader> {
         info!(
             r#"ArchiveReader::read_file_by_block_with_encoding(file_name: "{file_name}", decoding: _)"#

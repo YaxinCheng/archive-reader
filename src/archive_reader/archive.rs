@@ -1,6 +1,6 @@
 use super::reader::ArchiveReader;
 use crate::error::Result;
-use crate::DecodingFn;
+use crate::Decoder;
 use std::borrow::Cow;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -19,7 +19,7 @@ pub struct Archive {
     file_path: PathBuf,
     /// `decoder` is a function that decodes bytes into a proper string.
     /// By default, it decodes using UTF8.
-    decoder: Option<DecodingFn>,
+    decoder: Option<Decoder>,
 }
 
 impl Archive {
@@ -58,7 +58,7 @@ impl Archive {
     /// # Note:
     /// A decoder is a function that converts a series of bytes into a proper string.
     /// In the case where the conversion failed, it should return `None`.
-    pub fn decoder(&mut self, function: DecodingFn) -> &mut Self {
+    pub fn decoder(&mut self, function: Decoder) -> &mut Self {
         self.decoder = Some(function);
         self
     }
@@ -119,7 +119,7 @@ impl Archive {
         ArchiveReader::open(&self.file_path, self.block_size)
     }
 
-    fn get_decoding_fn(&self) -> DecodingFn {
+    fn get_decoding_fn(&self) -> Decoder {
         match self.decoder {
             Some(decoding_fn) => decoding_fn,
             None => Self::decode_utf8,

@@ -1,7 +1,7 @@
 use super::reader::ArchiveReader;
 use crate::error::{analyze_result, Error, Result};
 use crate::libarchive;
-use crate::{DecodingFn, LendingIterator};
+use crate::{Decoder, LendingIterator};
 use log::{debug, error};
 use std::borrow::Cow;
 use std::ffi::CStr;
@@ -14,7 +14,7 @@ pub(crate) struct EntryIter {
 }
 
 impl EntryIter {
-    pub fn new(reader: ArchiveReader, decoding: DecodingFn) -> Self {
+    pub fn new(reader: ArchiveReader, decoding: Decoder) -> Self {
         let iterator = EntryIterBorrowed::new(reader.handle, decoding);
         Self {
             _reader_guard: reader,
@@ -33,11 +33,11 @@ impl Iterator for EntryIter {
 
 pub(crate) struct EntryIterBorrowed {
     handle: *mut libarchive::archive,
-    decoding: DecodingFn,
+    decoding: Decoder,
 }
 
 impl EntryIterBorrowed {
-    pub fn new(handle: *mut libarchive::archive, decoding: DecodingFn) -> Self {
+    pub fn new(handle: *mut libarchive::archive, decoding: Decoder) -> Self {
         Self { handle, decoding }
     }
 }
