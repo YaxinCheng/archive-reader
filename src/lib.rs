@@ -19,7 +19,7 @@
 //! }
 //! ```
 //! # Features
-//! * `lending_iter` - Enables `LendingIterator` implementation, which avoids heap allocations for `read_file_by_block` functions.
+//! * `lending_iter` - Enables `LendingIterator` implementation, which avoids heap allocations for `read_file_by_block` function.
 //!
 
 mod archive_reader;

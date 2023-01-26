@@ -18,10 +18,10 @@ fn test_list_zip_file_names() -> Result<()> {
 fn test_list_7z_file_names() -> Result<()> {
     let expected = [
         "content/",
-        "content/first",
-        "content/third",
         "content/nested/",
+        "content/first",
         "content/nested/second",
+        "content/third",
     ];
     test_list_file_names(seven_z_archive(), &expected)
 }
@@ -29,11 +29,11 @@ fn test_list_7z_file_names() -> Result<()> {
 #[test]
 fn test_list_rar_file_names() -> Result<()> {
     let expected = [
-        "content",
         "content/first",
         "content/third",
-        "content/nested",
         "content/nested/second",
+        "content/nested",
+        "content",
     ];
     test_list_file_names(rar_archive(), &expected)
 }

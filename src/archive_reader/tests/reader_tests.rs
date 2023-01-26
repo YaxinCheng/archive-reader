@@ -18,10 +18,10 @@ fn test_list_file_names_zip() -> Result<()> {
 fn test_list_file_names_7z() -> Result<()> {
     let expected = [
         "content/",
-        "content/first",
-        "content/third",
         "content/nested/",
+        "content/first",
         "content/nested/second",
+        "content/third",
     ];
     test_list_file_names(seven_z_archive(), &expected)
 }
@@ -29,21 +29,20 @@ fn test_list_file_names_7z() -> Result<()> {
 #[test]
 fn test_list_file_names_rar() -> Result<()> {
     let expected = [
-        "content",
         "content/first",
         "content/third",
-        "content/nested",
         "content/nested/second",
+        "content/nested",
+        "content",
     ];
     test_list_file_names(rar_archive(), &expected)
 }
 
 fn test_list_file_names(path: &str, expected: &[&str]) -> Result<()> {
     let archive = ArchiveReader::open(path, 1024)?;
-    let mut file_names = archive
+    let file_names = archive
         .list_file_names(decode_utf8)
         .collect::<Result<Vec<_>>>()?;
-    file_names.sort_by_key(|file_name| file_name.len());
     assert_eq!(file_names, expected);
     Ok(())
 }

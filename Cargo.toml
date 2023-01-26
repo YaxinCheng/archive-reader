@@ -1,6 +1,6 @@
 [package]
 name = "archive-reader"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Yaxin Cheng <yaxin.cheng@icloud.com>"]
 license = "MIT"
@@ -9,7 +9,7 @@ homepage = "https://github.com/YaxinCheng/archive-reader"
 repository = "https://github.com/YaxinCheng/archive-reader"
 readme = "README.md"
 keywords = ["libarchive", "zip", "rar", "7z"]
-exclude = ["test_resources", "src/archive_reader/tests.rs"]
+exclude = ["test_resources", "src/archive_reader/tests"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

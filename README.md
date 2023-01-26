@@ -5,21 +5,22 @@ It provides rustic interface over listing file names and reading given files wit
 
 ```toml
 [dependencies]
-archive-reader = "0.1"
+archive-reader = "0.2"
 ```
 
 # Example
 ```rust
-use archive_reader::ArchiveReader;
+use archive_reader::Archive;
 use archive_reader::error::Result;
 
 fn main() -> Result<()> {
-    let file_names = ArchiveReader::open("some_archive.zip")?
-                        .list_file_names()
+    let mut archive = Archive::open("some_archive.zip");
+    let file_names = archive
+                        .block_size(1024 * 1024)
+                        .list_file_names()?
                         .collect::<Result<Vec<_>>>()?;
     let mut content = vec![];
-    let _ = ArchiveReader::open("some_archive.zip")?
-                        .read_file(&file_names[0], &mut content)?;
+    let _ = archive.read_file(&file_names[0], &mut content)?;
     println!("content={:?}", content);
     Ok(())
 }
@@ -34,6 +35,8 @@ This section talks about compiling this project
 * Rust 1.66.0 (May be compatible with lower versions, but I used 1.66.0)
 * Cargo
 * Git
+* libarchive >= 3.2.0
+  * Check it with command `pkg-config --libs --cflags libarchive 'libarchive >= 3.2.0'`
 
 ## Compile
 ```shell
