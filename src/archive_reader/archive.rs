@@ -130,3 +130,11 @@ impl Archive {
         Some(String::from_utf8_lossy(bytes))
     }
 }
+
+// accessor
+impl Archive {
+    /// `path` returns the archive file path.
+    pub fn path(&self) -> &Path {
+        &self.file_path
+    }
+}
