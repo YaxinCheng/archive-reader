@@ -1,6 +1,7 @@
 use super::reader::ArchiveReader;
 use crate::error::{analyze_result, Error, Result};
 use crate::libarchive;
+use crate::locale::{UTF8LocaleGuard, WindowsUTF8LocaleGuard};
 use crate::{Decoder, LendingIterator};
 use log::{debug, error};
 use std::borrow::Cow;
@@ -47,6 +48,7 @@ impl LendingIterator for EntryIterBorrowed {
 
     fn next(&mut self) -> Option<Self::Item<'_>> {
         debug_assert!(!self.handle.is_null(), "EntryIterBorrowed::handle is null");
+        let _locale_guard = UTF8LocaleGuard::new();
         let mut entry = std::ptr::null_mut();
         match unsafe { libarchive::archive_read_next_header(self.handle, &mut entry) } {
             libarchive::ARCHIVE_EOF => {
@@ -61,8 +63,10 @@ impl LendingIterator for EntryIterBorrowed {
                 debug!("archive_read_next_header: success");
             }
         };
+        let _locale_guard = WindowsUTF8LocaleGuard::new();
         let entry_name = unsafe { libarchive::archive_entry_pathname(entry) };
         if entry_name.is_null() {
+            // TODO: investigate the null
             error!("archive_entry_pathname returns null");
             return Some(Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
