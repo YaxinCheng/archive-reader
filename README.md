@@ -35,6 +35,7 @@ This section talks about compiling this project
 * Rust 1.66.0 (May be compatible with lower versions, but I used 1.66.0)
 * Cargo
 * Git
+* libc
 * libarchive >= 3.2.0
   * Check it with command `pkg-config --libs --cflags libarchive 'libarchive >= 3.2.0'`
 
