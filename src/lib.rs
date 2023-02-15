@@ -26,6 +26,7 @@ mod archive_reader;
 pub mod error;
 mod lending_iter;
 mod libarchive;
+mod locale;
 
 pub use crate::archive_reader::*;
 pub use error::*;

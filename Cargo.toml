@@ -1,6 +1,6 @@
 [package]
 name = "archive-reader"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 authors = ["Yaxin Cheng <yaxin.cheng@icloud.com>"]
 license = "MIT"
@@ -16,6 +16,7 @@ exclude = ["test_resources", "src/archive_reader/tests"]
 [dependencies]
 thiserror = "1.0"
 log = "0.4"
+libc = "0.2"
 
 [build-dependencies]
 pkg-config = "0.3"
