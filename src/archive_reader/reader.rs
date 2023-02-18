@@ -135,7 +135,10 @@ impl ArchiveReader {
         if found {
             Ok(iter::BlockReader::new(self))
         } else {
-            Err(Error::NotFound(file_name.to_string()))
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                file_name.to_string(),
+            ))?
         }
     }
 
