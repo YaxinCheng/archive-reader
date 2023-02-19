@@ -77,7 +77,7 @@ impl Archive {
 impl Archive {
     /// `list_file_names` return an iterator of file names extracted from the archive.
     /// The file names are decoded using the decoder.
-    pub fn list_file_names(&self) -> Result<impl Iterator<Item = Result<String>>> {
+    pub fn list_file_names(&self) -> Result<impl Iterator<Item = Result<String>> + Send> {
         Ok(self
             .create_reader()?
             .list_file_names(self.get_decoding_fn()))

@@ -16,8 +16,6 @@ pub enum Error {
     /// the entry name.
     #[error("Entry name cannot be decoded with given encoding")]
     Encoding,
-    #[error(r#"File name {0} is not found in archive"#)]
-    NotFound(String),
     /// Unspecified error
     #[error("Unknown error happened")]
     Unknown,

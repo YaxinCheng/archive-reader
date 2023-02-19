@@ -37,6 +37,8 @@ pub(crate) struct EntryIterBorrowed {
     decoding: Decoder,
 }
 
+unsafe impl Send for EntryIterBorrowed {}
+
 impl EntryIterBorrowed {
     pub fn new(handle: *mut libarchive::archive, decoding: Decoder) -> Self {
         Self { handle, decoding }
@@ -66,7 +68,6 @@ impl LendingIterator for EntryIterBorrowed {
         let _locale_guard = WindowsUTF8LocaleGuard::new();
         let entry_name = unsafe { libarchive::archive_entry_pathname(entry) };
         if entry_name.is_null() {
-            // TODO: investigate the null
             error!("archive_entry_pathname returns null");
             return Some(Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
