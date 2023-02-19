@@ -63,7 +63,10 @@ impl ArchiveReader {
 
     /// `list_file_names` extracts file names from the target archive
     /// using custom decoding function.
-    pub(crate) fn list_file_names(self, decoding: Decoder) -> impl Iterator<Item = Result<String>> {
+    pub(crate) fn list_file_names(
+        self,
+        decoding: Decoder,
+    ) -> impl Iterator<Item = Result<String>> + Send {
         info!("ArchiveReader::list_file_names_with_encoding(decoding: _)");
         iter::EntryIter::new(self, decoding)
     }

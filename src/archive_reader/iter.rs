@@ -37,6 +37,8 @@ pub(crate) struct EntryIterBorrowed {
     decoding: Decoder,
 }
 
+unsafe impl Send for EntryIterBorrowed {}
+
 impl EntryIterBorrowed {
     pub fn new(handle: *mut libarchive::archive, decoding: Decoder) -> Self {
         Self { handle, decoding }
