@@ -2,7 +2,7 @@ use crate::error::{analyze_result, Error, Result};
 use crate::lending_iter::LendingIterator;
 use crate::libarchive;
 use crate::locale::UTF8LocaleGuard;
-use log::{debug, error};
+use log::{debug, error, info};
 use std::borrow::Cow;
 use std::ffi::CStr;
 
@@ -33,6 +33,24 @@ impl LendingIterator for Entries {
         };
         self.current_entry.replace(Entry(entry));
         self.current_entry.as_ref().map(Ok)
+    }
+}
+
+impl Entries {
+    fn clean(&self) -> Result<()> {
+        info!("Entries::clean()");
+        unsafe {
+            analyze_result(libarchive::archive_read_close(self.handle), self.handle)?;
+            analyze_result(libarchive::archive_read_free(self.handle), self.handle)
+        }
+    }
+}
+
+impl Drop for Entries {
+    fn drop(&mut self) {
+        if let Err(error) = self.clean() {
+            error!("Failed to clean up ArchiveReader: {error:?}")
+        }
     }
 }
 
