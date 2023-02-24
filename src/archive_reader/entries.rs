@@ -2,7 +2,7 @@ use super::reader::ArchiveReader;
 use crate::error::{analyze_result, Error, Result};
 use crate::lending_iter::LendingIterator;
 use crate::libarchive;
-use crate::locale::{UTF8LocaleGuard, WindowsUTF8LocaleGuard};
+use crate::locale::UTF8LocaleGuard;
 use log::{debug, error};
 use std::borrow::Cow;
 use std::ffi::CStr;
@@ -43,7 +43,6 @@ impl Entry {
         F: FnOnce(&[u8]) -> Option<Cow<str>>,
     {
         let _utf8_locale_guard = UTF8LocaleGuard::new();
-        let _windows_locale_guard = WindowsUTF8LocaleGuard::new();
 
         let entry_name = unsafe { libarchive::archive_entry_pathname(self.0) };
         if entry_name.is_null() {
