@@ -1,4 +1,3 @@
-use super::reader::ArchiveReader;
 use crate::error::{analyze_result, Error, Result};
 use crate::lending_iter::LendingIterator;
 use crate::libarchive;
@@ -8,22 +7,24 @@ use std::borrow::Cow;
 use std::ffi::CStr;
 
 pub struct Entries {
-    reader: ArchiveReader,
+    handle: *mut libarchive::archive,
     current_entry: Option<Entry>,
 }
+
+unsafe impl Send for Entries {}
 
 impl LendingIterator for Entries {
     type Item<'me> = Result<&'me Entry>;
 
     fn next(&mut self) -> Option<Self::Item<'_>> {
         let mut entry = std::ptr::null_mut();
-        match unsafe { libarchive::archive_read_next_header(self.reader.handle, &mut entry) } {
+        match unsafe { libarchive::archive_read_next_header(self.handle, &mut entry) } {
             libarchive::ARCHIVE_EOF => {
                 debug!("archive_read_next_header: reaches EOF");
                 return None;
             }
             result => {
-                if let Err(error) = analyze_result(result, self.reader.handle) {
+                if let Err(error) = analyze_result(result, self.handle) {
                     error!("archive_read_next_header error: {error:?}");
                     return Some(Err(error));
                 }
@@ -36,6 +37,8 @@ impl LendingIterator for Entries {
 }
 
 pub struct Entry(*mut libarchive::archive_entry);
+
+unsafe impl Send for Entry {}
 
 impl Entry {
     pub fn file_name<F>(&self, decode: F) -> Result<Cow<str>>
