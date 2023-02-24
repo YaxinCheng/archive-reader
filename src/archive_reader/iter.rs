@@ -1,7 +1,7 @@
 use super::reader::ArchiveReader;
 use crate::error::{analyze_result, Error, Result};
 use crate::libarchive;
-use crate::locale::{UTF8LocaleGuard, WindowsUTF8LocaleGuard};
+use crate::locale::UTF8LocaleGuard;
 use crate::{Decoder, LendingIterator};
 use log::{debug, error};
 use std::borrow::Cow;
@@ -65,7 +65,6 @@ impl LendingIterator for EntryIterBorrowed {
                 debug!("archive_read_next_header: success");
             }
         };
-        let _locale_guard = WindowsUTF8LocaleGuard::new();
         let entry_name = unsafe { libarchive::archive_entry_pathname(entry) };
         if entry_name.is_null() {
             error!("archive_entry_pathname returns null");
