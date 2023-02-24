@@ -1,5 +1,5 @@
 //
-// This file is taken from https://github.com/OSSystems/compress-tools-rs/blob/master/src/ffi/locale.rs
+// This file is derived from https://github.com/OSSystems/compress-tools-rs/blob/master/src/ffi/locale.rs
 // All the credit goes to https://github.com/OSSystems
 //
 // Copyright (C) 2021 O.S. Systems Software LTDA
@@ -16,7 +16,6 @@
 ///   https://github.com/libarchive/libarchive/issues/587
 ///   https://github.com/libarchive/libarchive/wiki/Filenames
 pub(crate) use inner::UTF8LocaleGuard;
-pub(crate) use inner::WindowsUTF8LocaleGuard;
 
 #[cfg(unix)]
 mod inner {
@@ -24,8 +23,6 @@ mod inner {
         save: libc::locale_t,
         utf8_locale: libc::locale_t,
     }
-
-    pub(crate) struct WindowsUTF8LocaleGuard {}
 
     impl UTF8LocaleGuard {
         pub(crate) fn new() -> Self {
@@ -63,12 +60,6 @@ mod inner {
             };
         }
     }
-
-    impl WindowsUTF8LocaleGuard {
-        pub(crate) fn new() -> Self {
-            Self {}
-        }
-    }
 }
 
 #[cfg(windows)]
@@ -78,20 +69,12 @@ mod inner {
     }
     const _ENABLE_PER_THREAD_LOCALE: std::os::raw::c_int = 1;
 
-    pub(crate) struct UTF8LocaleGuard {}
-
-    pub(crate) struct WindowsUTF8LocaleGuard {
+    pub(crate) struct UTF8LocaleGuard {
         save: Option<std::ffi::CString>,
         save_thread_config: ::std::os::raw::c_int,
     }
 
     impl UTF8LocaleGuard {
-        pub(crate) fn new() -> Self {
-            Self {}
-        }
-    }
-
-    impl WindowsUTF8LocaleGuard {
         pub(crate) fn new() -> Self {
             let locale = b".UTF-8\0";
 
@@ -122,7 +105,7 @@ mod inner {
         }
     }
 
-    impl Drop for WindowsUTF8LocaleGuard {
+    impl Drop for UTF8LocaleGuard {
         fn drop(&mut self) {
             if let Some(locale) = &self.save {
                 unsafe { libc::setlocale(libc::LC_CTYPE, locale.as_ptr()) };
