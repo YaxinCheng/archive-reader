@@ -1,25 +1,19 @@
 use super::blocks::BlockReaderBorrowed;
 use crate::error::{Error, Result};
 use crate::lending_iter::LendingIterator;
-use crate::libarchive;
 use crate::locale::UTF8LocaleGuard;
+use crate::{libarchive, Decoder};
 use log::{error, info};
 use std::borrow::Cow;
 use std::ffi::CStr;
 use std::io::Write;
 
 /// `Entry` represents a file / dir in an archive.
-///
-/// # Safety
-/// Try not to keep entry objects!
-/// Entry has pointers pointing to the bytes in the archive.
-/// Every call on Entries::next will disable the pointers,
-/// and it is undefined behaviour to use the functions
-/// while the Entry is not pointing to the newest entry.
 pub struct Entry {
     archive: *mut libarchive::archive,
     entry: *mut libarchive::archive_entry,
     already_read: bool,
+    decoder: Decoder,
 }
 
 unsafe impl Send for Entry {}
@@ -28,21 +22,20 @@ impl Entry {
     pub(crate) fn new(
         archive: *mut libarchive::archive,
         entry: *mut libarchive::archive_entry,
+        decoder: Decoder,
     ) -> Self {
         Self {
             archive,
             entry,
             already_read: false,
+            decoder,
         }
     }
 
     /// `file_name` returns the name of the entry decoded with the provided decoder.
     /// It may fail if the decoder cannot decode the name.
-    pub fn file_name<F>(&self, decode: F) -> Result<Cow<str>>
-    where
-        F: FnOnce(&[u8]) -> Option<Cow<str>>,
-    {
-        info!(r#"Entry::file_name(decode: _)"#);
+    pub fn file_name(&self) -> Result<Cow<str>> {
+        info!(r#"Entry::file_name()"#);
         let _utf8_locale_guard = UTF8LocaleGuard::new();
 
         let entry_name = unsafe { libarchive::archive_entry_pathname(self.entry) };
@@ -55,7 +48,7 @@ impl Entry {
             .into());
         }
         let entry_name_in_bytes = unsafe { CStr::from_ptr(entry_name).to_bytes() };
-        match decode(entry_name_in_bytes) {
+        match (self.decoder)(entry_name_in_bytes) {
             Some(entry_name) => Ok(entry_name),
             None => {
                 error!("failed to decode entry name");

@@ -1,6 +1,6 @@
 [package]
 name = "archive-reader"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2021"
 authors = ["Yaxin Cheng <yaxin.cheng@icloud.com>"]
 license = "MIT"

@@ -1,6 +1,5 @@
 use crate::error::Result;
 use crate::Archive;
-use std::borrow::Cow;
 
 const fn zip_archive() -> &'static str {
     concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/test.zip")
@@ -129,9 +128,7 @@ fn test_read_by_blocks() -> Result<()> {
 fn test_file_names_from_entries() -> Result<()> {
     let mut names = vec![];
     Archive::open(zip_archive()).entries(|entry| {
-        let file_name = entry
-            .file_name(|bytes| Some(String::from_utf8_lossy(bytes)))?
-            .to_string();
+        let file_name = entry.file_name()?.to_string();
         names.push(file_name);
         Ok(())
     })?;
@@ -154,9 +151,7 @@ fn test_file_names_from_entries() -> Result<()> {
     let mut names = vec![];
     let mut entries = Archive::open(zip_archive()).entries()?;
     while let Some(entry) = entries.next() {
-        let file_name = entry?
-            .file_name(|bytes| Some(String::from_utf8_lossy(bytes)))?
-            .to_string();
+        let file_name = entry?.file_name()?.to_string();
         names.push(file_name);
     }
     let expected = [
@@ -211,14 +206,8 @@ fn test_file_content_from_entries() -> Result<()> {
 #[test]
 #[cfg(not(feature = "lending_iter"))]
 fn test_entry_name_reproducible() -> Result<()> {
-    fn utf8_decoder(bytes: &[u8]) -> Option<Cow<str>> {
-        Some(String::from_utf8_lossy(bytes))
-    }
     Archive::open(zip_archive()).entries(|entry| {
-        assert_eq!(
-            entry.file_name(utf8_decoder)?,
-            entry.file_name(utf8_decoder)?
-        );
+        assert_eq!(entry.file_name()?, entry.file_name()?);
         Ok(())
     })?;
     Ok(())
@@ -228,16 +217,10 @@ fn test_entry_name_reproducible() -> Result<()> {
 #[cfg(feature = "lending_iter")]
 fn test_entry_name_reproducible() -> Result<()> {
     use crate::LendingIterator;
-    fn utf8_decoder(bytes: &[u8]) -> Option<Cow<str>> {
-        Some(String::from_utf8_lossy(bytes))
-    }
     let mut entries = Archive::open(zip_archive()).entries()?;
     while let Some(entry) = entries.next() {
         let entry = entry?;
-        assert_eq!(
-            entry.file_name(utf8_decoder)?,
-            entry.file_name(utf8_decoder)?
-        );
+        assert_eq!(entry.file_name()?, entry.file_name()?);
     }
     Ok(())
 }
