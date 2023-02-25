@@ -2,7 +2,6 @@ use super::entries::Entries;
 use crate::error::{analyze_result, Result};
 use crate::libarchive;
 use crate::LendingIterator;
-use bytes::Bytes;
 use log::{debug, error};
 use std::slice;
 
@@ -24,9 +23,9 @@ impl BlockReader {
 
 #[cfg(not(feature = "lending_iter"))]
 impl Iterator for BlockReader {
-    type Item = Result<Bytes>;
+    type Item = Result<Box<[u8]>>;
 
-    fn next(&mut self) -> Option<Result<Bytes>> {
+    fn next(&mut self) -> Option<Result<Box<[u8]>>> {
         Iterator::next(&mut self.block_reader)
     }
 }
@@ -100,12 +99,12 @@ impl BlockReaderBorrowed {
 }
 
 impl Iterator for BlockReaderBorrowed {
-    type Item = Result<Bytes>;
+    type Item = Result<Box<[u8]>>;
 
-    fn next(&mut self) -> Option<Result<Bytes>> {
+    fn next(&mut self) -> Option<Result<Box<[u8]>>> {
         match self.read_block() {
             Ok(&[]) => None,
-            block => Some(block.map(Bytes::copy_from_slice)),
+            block => Some(block.map(Box::from)),
         }
     }
 }

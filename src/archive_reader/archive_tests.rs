@@ -1,10 +1,5 @@
 use crate::error::Result;
 use crate::Archive;
-use bytes::Bytes;
-
-fn find_file(file_name: &str) -> impl Fn(&[u8]) -> bool + '_ {
-    move |bytes| String::from_utf8_lossy(bytes) == file_name
-}
 
 const fn zip_archive() -> &'static str {
     concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/test.zip")
@@ -96,7 +91,7 @@ fn test_read_dir() -> Result<()> {
 
 fn test_read_file_to_bytes(archive_path: &str, content_path: &str, expected: &[u8]) -> Result<()> {
     let mut output = vec![];
-    let _ = Archive::open(archive_path).read_file(find_file(content_path), &mut output)?;
+    let _ = Archive::open(archive_path).read_file(content_path, &mut output)?;
     assert_eq!(output, expected);
     Ok(())
 }
@@ -117,7 +112,7 @@ fn test_read_by_blocks() -> Result<()> {
         "/test_resources/large.zip"
     ))
     .block_size(1024)
-    .read_file_by_block(find_file("large.txt"))?;
+    .read_file_by_block("large.txt")?;
     while let Some(block) = blocks.next() {
         let block = block?;
         num_of_blocks += 1;
@@ -133,8 +128,8 @@ fn test_read_by_blocks() -> Result<()> {
 fn test_file_names_from_entries() -> Result<()> {
     let mut names = vec![];
     Archive::open(zip_archive()).entries(|entry| {
-        let file_name = entry.file_name()?;
-        names.push(Bytes::copy_from_slice(file_name));
+        let file_name = entry.file_name()?.to_string();
+        names.push(file_name);
         Ok(())
     })?;
     let expected = [
@@ -156,7 +151,7 @@ fn test_file_names_from_entries() -> Result<()> {
     let mut names = vec![];
     let mut entries = Archive::open(zip_archive()).entries()?;
     while let Some(entry) = entries.next() {
-        let file_name = Bytes::copy_from_slice(entry?.file_name()?);
+        let file_name = entry?.file_name()?.to_string();
         names.push(file_name);
     }
     let expected = [
