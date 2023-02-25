@@ -94,7 +94,7 @@ impl Entries {
         info!(r#"Entries::find_entry_by_name(decoder: _, file_name: "{file_name}")"#);
         for item in self.by_ref() {
             match item {
-                Ok(entry) if entry.file_name(decoder)? == file_name => return Ok(()),
+                Ok(entry) if unsafe { entry.file_name(decoder)? } == file_name => return Ok(()),
                 Err(error) => return Err(error),
                 _ => (),
             }
@@ -121,7 +121,7 @@ impl Iterator for EntryNames {
 
     fn next(&mut self) -> Option<Self::Item> {
         let name = match self.entries.next()? {
-            Ok(entry) => entry.file_name(self.decoder).map(String::from),
+            Ok(entry) => unsafe { entry.file_name(self.decoder) }.map(String::from),
             Err(error) => Err(error),
         };
         Some(name)

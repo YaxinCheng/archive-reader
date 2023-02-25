@@ -130,9 +130,7 @@ fn test_file_names_from_entries() -> Result<()> {
     let mut names = vec![];
     for entry in entries {
         names.push(
-            entry?
-                .file_name(|bytes| Some(String::from_utf8_lossy(bytes)))?
-                .to_string(),
+            unsafe { entry?.file_name(|bytes| Some(String::from_utf8_lossy(bytes)))? }.to_string(),
         );
     }
     let expected = [
@@ -156,7 +154,7 @@ fn test_file_content_from_entries() -> Result<()> {
     for entry in entries {
         let entry = entry?;
         let mut content = Vec::<u8>::new();
-        let mut blocks = entry.read_file_by_block();
+        let mut blocks = unsafe { entry.read_file_by_block() };
         while let Some(block) = blocks.next() {
             content.extend(block?.iter())
         }
@@ -175,10 +173,12 @@ fn test_entry_name_reproducible() -> Result<()> {
     }
     for entry in entries {
         let entry = entry?;
-        assert_eq!(
-            entry.file_name(utf8_decoder)?,
-            entry.file_name(utf8_decoder)?
-        )
+        unsafe {
+            assert_eq!(
+                entry.file_name(utf8_decoder)?,
+                entry.file_name(utf8_decoder)?
+            )
+        }
     }
     Ok(())
 }

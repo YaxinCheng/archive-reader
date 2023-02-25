@@ -8,6 +8,14 @@ use std::borrow::Cow;
 use std::ffi::CStr;
 use std::io::Write;
 
+/// `Entry` represents a file / dir in an archive.
+///
+/// # Safety
+/// Try not to keep entry objects!
+/// Entry has pointers pointing to the bytes in the archive.
+/// Every call on Entries::next will disable the pointers,
+/// and it is undefined behaviour to use the functions
+/// while the Entry is not pointing to the newest entry.
 pub struct Entry {
     archive: *mut libarchive::archive,
     entry: *mut libarchive::archive_entry,
@@ -23,7 +31,13 @@ impl Entry {
         Self { archive, entry }
     }
 
-    pub fn file_name<F>(&self, decode: F) -> Result<Cow<str>>
+    /// `file_name` returns the name of the entry decoded with the provided decoder.
+    /// It may fail if the decoder cannot decode the name.
+    ///
+    /// # Safety
+    /// Make sure the Entries::next has not been called again before calling.
+    /// Calling this function while Entry is not pointing to the newest entry contains UB.
+    pub unsafe fn file_name<F>(&self, decode: F) -> Result<Cow<str>>
     where
         F: FnOnce(&[u8]) -> Option<Cow<str>>,
     {
@@ -49,21 +63,36 @@ impl Entry {
         }
     }
 
+    /// `read_file_by_block` returns an iterator of the entry content blocks.
+    ///
+    /// # Safety
+    /// Make sure the Entries::next has not been called again before calling.
+    /// Calling this function while Entry is not pointing to the newest entry contains UB.
     #[cfg(not(feature = "lending_iter"))]
-    pub fn read_file_by_block(self) -> impl Iterator<Item = Result<Box<[u8]>>> + Send {
+    pub unsafe fn read_file_by_block(self) -> impl Iterator<Item = Result<Box<[u8]>>> + Send {
         info!(r#"Entry::read_file_by_block()"#);
         BlockReaderBorrowed::new(self.archive)
     }
 
+    /// `read_file_by_block` returns an iterator of the entry content blocks.
+    ///
+    /// # Safety
+    /// Make sure the Entries::next has not been called again before calling.
+    /// Calling this function while Entry is not pointing to the newest entry contains UB.
     #[cfg(feature = "lending_iter")]
-    pub fn read_file_by_block(
+    pub unsafe fn read_file_by_block(
         self,
     ) -> impl for<'a> crate::LendingIterator<Item<'a> = Result<&'a [u8]>> + Send {
         info!(r#"Entry::read_file_by_block()"#);
         BlockReaderBorrowed::new(self.archive)
     }
 
-    pub fn read_file<W: Write>(self, mut output: W) -> Result<usize> {
+    /// `read_file` reads the content of this entry to an output.
+    ///
+    /// # Safety
+    /// Make sure the Entries::next has not been called again before calling.
+    /// Calling this function while Entry is not pointing to the newest entry contains UB.
+    pub unsafe fn read_file<W: Write>(self, mut output: W) -> Result<usize> {
         info!(r#"Entry::read_file(output: _)"#);
         let mut blocks = BlockReaderBorrowed::new(self.archive);
         let mut written = 0;
