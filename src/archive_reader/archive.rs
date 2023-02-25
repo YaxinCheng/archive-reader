@@ -127,8 +127,8 @@ impl Archive {
         Ok(BlockReader::new(entries))
     }
 
-    /// `entries` returns an iterator of `Entry`s.
-    /// Each `Entry` represents a file / dir in an archive.
+    /// `entries` iterates through each file / dir in the archive,
+    /// and passes the mutable references of the entries to the process closure.
     /// Using the functions provided on the `Entry` object,
     /// one can obtain two things from each entry:
     ///   1. name
@@ -145,6 +145,12 @@ impl Archive {
         Ok(())
     }
 
+    /// `entries` returns a lending iterator of `Entry`s.
+    /// Each `Entry` represents a file / dir in an archive.
+    /// Using the functions provided on the `Entry` object,
+    /// one can obtain two things from each entry:
+    ///   1. name
+    ///   2. content
     #[cfg(feature = "lending_iter")]
     pub fn entries(
         &self,
