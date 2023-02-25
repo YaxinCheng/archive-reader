@@ -12,10 +12,6 @@ pub enum Error {
     /// Archive-reader relies on UTF8 encoded path to load archives.
     #[error("Archive path cannot be converted to utf8")]
     PathNotUtf8,
-    /// `Encoding` error happens when the giving decoding function failed to decode
-    /// the entry name.
-    #[error("Entry name cannot be decoded with given encoding")]
-    Encoding,
     /// Unspecified error
     #[error("Unknown error happened")]
     Unknown,
