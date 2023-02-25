@@ -9,7 +9,7 @@ homepage = "https://github.com/YaxinCheng/archive-reader"
 repository = "https://github.com/YaxinCheng/archive-reader"
 readme = "README.md"
 keywords = ["libarchive", "zip", "rar", "7z"]
-exclude = ["test_resources", "src/archive_reader/tests"]
+exclude = ["test_resources", "src/archive_reader/archive_tests.rs"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
