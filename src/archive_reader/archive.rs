@@ -2,7 +2,6 @@ use crate::archive_reader::blocks::{BlockReader, BlockReaderBorrowed};
 use crate::archive_reader::entries::Entries;
 use crate::error::Result;
 use crate::Entry;
-use bytes::Bytes;
 use log::info;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -55,8 +54,9 @@ impl Archive {
 // Consumers
 impl Archive {
     /// `list_file_names` return an iterator of file names extracted from the archive.
-    /// The file names are decoded using the decoder.
-    pub fn list_file_names(&self) -> Result<impl Iterator<Item = Result<Bytes>> + Send> {
+    /// The file names are in bytes,
+    /// and users can choose their own decoder to decode the bytes into string.
+    pub fn list_file_names(&self) -> Result<impl Iterator<Item = Result<bytes::Bytes>> + Send> {
         info!("Archive::list_file_names()");
         self.list_entries().map(|entries| entries.file_names())
     }
@@ -86,7 +86,7 @@ impl Archive {
     pub fn read_file_by_block<P>(
         &self,
         predicate: P,
-    ) -> Result<impl Iterator<Item = Result<Bytes>> + Send>
+    ) -> Result<impl Iterator<Item = Result<bytes::Bytes>> + Send>
     where
         P: Fn(&[u8]) -> bool,
     {
@@ -106,7 +106,7 @@ impl Archive {
     where
         P: Fn(&[u8]) -> bool,
     {
-        info!(r#"Archive::read_file_by_block(file_name: "{file_name}")"#);
+        info!(r#"Archive::read_file_by_block(predicate: _)"#);
         let mut entries = self.list_entries()?;
         entries.find_entry_by_name(predicate)?;
         Ok(BlockReader::new(entries))

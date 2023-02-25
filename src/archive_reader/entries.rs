@@ -1,7 +1,6 @@
 use super::entry::Entry;
 use crate::error::{analyze_result, path_does_not_exist, Error, Result};
 use crate::libarchive;
-use bytes::Bytes;
 use log::{debug, error, info};
 use std::ffi::CString;
 use std::path::Path;
@@ -17,7 +16,6 @@ pub(crate) struct Entries {
 #[cfg(feature = "lending_iter")]
 pub(crate) struct Entries {
     pub(crate) archive: *mut libarchive::archive,
-    decoder: Decoder,
     pub(crate) entry: Option<Entry>,
 }
 
@@ -44,7 +42,7 @@ impl LendingIterator for Entries {
         let entry = unsafe { self.read_entry() }?;
         let entry = match entry {
             Err(error) => return Some(Err(error)),
-            Ok(entry) => Entry::new(self.archive, entry, self.decoder),
+            Ok(entry) => Entry::new(self.archive, entry),
         };
         self.entry.replace(entry);
         self.entry.as_mut().map(Ok)
@@ -123,7 +121,7 @@ impl Entries {
         }
     }
 
-    pub(crate) fn file_names(self) -> impl Iterator<Item = Result<Bytes>> + Send {
+    pub(crate) fn file_names(self) -> EntryNames {
         info!(r#"Entries::file_names(decoder: _)"#);
         EntryNames(self)
     }
@@ -155,11 +153,11 @@ impl Drop for Entries {
 pub(crate) struct EntryNames(Entries);
 
 impl Iterator for EntryNames {
-    type Item = Result<Bytes>;
+    type Item = Result<bytes::Bytes>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let name = match self.0.next()? {
-            Ok(entry) => entry.file_name().map(Bytes::copy_from_slice),
+            Ok(entry) => entry.file_name().map(bytes::Bytes::copy_from_slice),
             Err(error) => Err(error),
         };
         Some(name)

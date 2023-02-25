@@ -3,7 +3,6 @@ use crate::error::Result;
 use crate::lending_iter::LendingIterator;
 use crate::libarchive;
 use crate::locale::UTF8LocaleGuard;
-use bytes::Bytes;
 use log::{error, info};
 use std::ffi::CStr;
 use std::io::Write;
@@ -49,7 +48,7 @@ impl Entry {
 
     /// `read_file_by_block` returns an iterator of the entry content blocks.
     #[cfg(not(feature = "lending_iter"))]
-    pub fn read_file_by_block(&mut self) -> impl Iterator<Item = Result<Bytes>> + Send {
+    pub fn read_file_by_block(&mut self) -> impl Iterator<Item = Result<bytes::Bytes>> + Send {
         info!(r#"Entry::read_file_by_block()"#);
         if self.already_read {
             BlockReaderBorrowed::empty()

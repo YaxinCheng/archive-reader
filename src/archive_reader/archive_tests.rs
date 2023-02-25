@@ -156,7 +156,7 @@ fn test_file_names_from_entries() -> Result<()> {
     let mut names = vec![];
     let mut entries = Archive::open(zip_archive()).entries()?;
     while let Some(entry) = entries.next() {
-        let file_name = entry?.file_name()?.to_string();
+        let file_name = Bytes::copy_from_slice(entry?.file_name()?);
         names.push(file_name);
     }
     let expected = [
