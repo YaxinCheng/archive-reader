@@ -90,7 +90,7 @@ impl Archive {
     pub fn read_file<W: Write>(&self, file_name: &str, mut output: W) -> Result<usize> {
         info!(r#"Archive::read_file(file_name: "{file_name}", output: _)"#);
         let mut entries = self.list_entries()?;
-        entries.find_entry_by_name(self.get_decoding_fn(), file_name)?;
+        entries.find_entry_by_name(file_name, self.get_decoding_fn())?;
         let mut blocks = BlockReaderBorrowed::from(&entries);
         let mut written = 0;
         while let Some(block) = crate::LendingIterator::next(&mut blocks) {
@@ -110,7 +110,7 @@ impl Archive {
     ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send> {
         info!(r#"Archive::read_file_by_block(file_name: "{file_name}")"#);
         let mut entries = self.list_entries()?;
-        entries.find_entry_by_name(self.get_decoding_fn(), file_name)?;
+        entries.find_entry_by_name(file_name, self.get_decoding_fn())?;
         Ok(BlockReader::new(entries))
     }
 
@@ -123,7 +123,7 @@ impl Archive {
     ) -> Result<impl for<'a> crate::LendingIterator<Item<'a> = Result<&'a [u8]>> + Send> {
         info!(r#"Archive::read_file_by_block(file_name: "{file_name}")"#);
         let mut entries = self.list_entries()?;
-        entries.find_entry_by_name(self.get_decoding_fn(), file_name)?;
+        entries.find_entry_by_name(file_name, self.get_decoding_fn())?;
         Ok(BlockReader::new(entries))
     }
 

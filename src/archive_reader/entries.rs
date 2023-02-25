@@ -90,9 +90,9 @@ impl Entries {
         }
     }
 
-    pub(crate) fn find_entry_by_name(&mut self, decoder: Decoder, file_name: &str) -> Result<()> {
+    pub(crate) fn find_entry_by_name(&mut self, file_name: &str, decoder: Decoder) -> Result<()> {
         info!(r#"Entries::find_entry_by_name(decoder: _, file_name: "{file_name}")"#);
-        while let Some(item) = self.next() {
+        for item in self.by_ref() {
             match item {
                 Ok(entry) if entry.file_name(decoder)? == file_name => return Ok(()),
                 Err(error) => return Err(error),
