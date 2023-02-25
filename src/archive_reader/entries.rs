@@ -97,14 +97,10 @@ impl Entries {
         }
     }
 
-    pub(crate) fn find_entry<P, F, R>(&mut self, predicate: P, process: F) -> Result<R>
-    where
-        P: Fn(&Entry) -> bool,
-        F: FnOnce(&Entry) -> R,
-    {
+    pub(crate) fn find_entry_by_name(&mut self, decoder: Decoder, file_name: &str) -> Result<()> {
         while let Some(item) = self.next() {
             match item {
-                Ok(entry) if predicate(entry) => return Ok(process(entry)),
+                Ok(entry) if entry.file_name(decoder)? == file_name => return Ok(()),
                 Err(error) => return Err(error),
                 _ => (),
             }

@@ -5,17 +5,50 @@ use std::slice;
 
 /// `BlockReader` is an iterator that reads an archive entry block by block.
 pub(crate) struct BlockReader {
-    entries: Entries,
+    _entries: Entries,
+    block_reader: BlockReaderBorrowed,
+}
+
+impl BlockReader {
+    pub fn new(entries: Entries) -> Self {
+        let block_reader = BlockReaderBorrowed::new(&entries);
+        BlockReader {
+            _entries: entries,
+            block_reader,
+        }
+    }
+}
+
+#[cfg(not(feature = "lending_iter"))]
+impl Iterator for BlockReader {
+    type Item = Result<Box<[u8]>>;
+
+    fn next(&mut self) -> Option<Result<Box<[u8]>>> {
+        self.block_reader.next()
+    }
+}
+
+#[cfg(feature = "lending_iter")]
+impl crate::LendingIterator for BlockReader {
+    type Item<'me> = Result<&'me [u8]>;
+
+    fn next(&mut self) -> Option<Self::Item<'_>> {
+        self.block_reader.next()
+    }
+}
+
+pub(crate) struct BlockReaderBorrowed {
+    archive: *mut libarchive::archive,
     /// ended is set to true when the iterator has reached its end.
     ended: bool,
 }
 
-unsafe impl Send for BlockReader {}
+unsafe impl Send for BlockReaderBorrowed {}
 
-impl BlockReader {
-    pub fn new(entries: Entries) -> Self {
-        BlockReader {
-            entries,
+impl BlockReaderBorrowed {
+    pub(crate) fn new(entries: &Entries) -> Self {
+        Self {
+            archive: entries.archive,
             ended: false,
         }
     }
@@ -28,19 +61,14 @@ impl BlockReader {
         let mut offset = 0;
         let mut size = 0;
         match unsafe {
-            libarchive::archive_read_data_block(
-                self.entries.archive,
-                &mut buf,
-                &mut size,
-                &mut offset,
-            )
+            libarchive::archive_read_data_block(self.archive, &mut buf, &mut size, &mut offset)
         } {
             libarchive::ARCHIVE_EOF => {
                 debug!("archive_read_data_block: reaches eof");
                 self.ended = true;
                 Ok(&[])
             }
-            result => match analyze_result(result, self.entries.archive) {
+            result => match analyze_result(result, self.archive) {
                 Ok(()) => {
                     let content = unsafe { slice::from_raw_parts(buf as *const u8, size) };
                     Ok(content)
@@ -56,7 +84,7 @@ impl BlockReader {
 }
 
 #[cfg(not(feature = "lending_iter"))]
-impl Iterator for BlockReader {
+impl Iterator for BlockReaderBorrowed {
     type Item = Result<Box<[u8]>>;
 
     fn next(&mut self) -> Option<Result<Box<[u8]>>> {
@@ -68,7 +96,7 @@ impl Iterator for BlockReader {
 }
 
 #[cfg(feature = "lending_iter")]
-impl crate::LendingIterator for BlockReader {
+impl crate::LendingIterator for BlockReaderBorrowed {
     type Item<'me> = Result<&'me [u8]>;
 
     fn next(&mut self) -> Option<Self::Item<'_>> {

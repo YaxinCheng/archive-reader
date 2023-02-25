@@ -36,32 +36,4 @@ impl Entry {
             }
         }
     }
-
-    pub fn read_file<W: Write>(&self, mut output: W) -> Result<usize> {
-        let mut blocks = self.read_file_by_block();
-        let mut written = 0;
-        while let Some(block) = blocks.next() {
-            let block = block?;
-            written += block.len();
-            output.write_all(block.as_ref())?;
-        }
-        Ok(written)
-    }
-
-    // TODO: Unable to keep entry alive
-    #[cfg(not(feature = "lending_iter"))]
-    pub fn read_file_by_block(&self) -> impl Iterator<Item = Result<Box<[u8]>>> + Send {
-        self.read_file_by_block_raw()
-    }
-
-    #[cfg(feature = "lending_iter")]
-    pub fn read_file_by_block(
-        &self,
-    ) -> impl for<'a> LendingIterator<Item<'a> = Result<&'a [u8]>> + Send {
-        self.read_file_by_block_raw()
-    }
-
-    fn read_file_by_block_raw(self) -> iter::BlockReader {
-        iter::BlockReader::new(self)
-    }
 }
