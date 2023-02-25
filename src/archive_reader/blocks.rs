@@ -49,7 +49,7 @@ unsafe impl Send for BlockReaderBorrowed {}
 
 impl From<&Entries> for BlockReaderBorrowed {
     fn from(entries: &Entries) -> Self {
-        BlockReaderBorrowed::new(entries.0)
+        BlockReaderBorrowed::new(entries.archive)
     }
 }
 
@@ -58,6 +58,13 @@ impl BlockReaderBorrowed {
         Self {
             archive,
             ended: false,
+        }
+    }
+
+    pub(crate) fn empty() -> Self {
+        Self {
+            archive: std::ptr::null_mut(),
+            ended: true,
         }
     }
 

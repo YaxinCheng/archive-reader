@@ -5,29 +5,67 @@ use log::{debug, error, info};
 use std::ffi::CString;
 use std::path::Path;
 
-pub(crate) struct Entries(pub(crate) *mut libarchive::archive);
+#[cfg(feature = "lending_iter")]
+use crate::LendingIterator;
+
+#[cfg(not(feature = "lending_iter"))]
+pub(crate) struct Entries {
+    pub(crate) archive: *mut libarchive::archive,
+}
+
+#[cfg(feature = "lending_iter")]
+pub(crate) struct Entries {
+    pub(crate) archive: *mut libarchive::archive,
+    pub(crate) entry: Option<Entry>,
+}
 
 unsafe impl Send for Entries {}
 
+#[cfg(not(feature = "lending_iter"))]
 impl Iterator for Entries {
     type Item = Result<Entry>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        let entry = unsafe { self.read_entry() }?;
+        match entry {
+            Ok(entry) => Some(Ok(Entry::new(self.archive, entry))),
+            Err(error) => Some(Err(error)),
+        }
+    }
+}
+
+#[cfg(feature = "lending_iter")]
+impl LendingIterator for Entries {
+    type Item<'me> = Result<&'me mut Entry>;
+
+    fn next(&mut self) -> Option<Self::Item<'_>> {
+        let entry = unsafe { self.read_entry() }?;
+        let entry = match entry {
+            Err(error) => return Some(Err(error)),
+            Ok(entry) => Entry::new(self.archive, entry),
+        };
+        self.entry.replace(entry);
+        self.entry.as_mut().map(Ok)
+    }
+}
+
+impl Entries {
+    unsafe fn read_entry(&self) -> Option<Result<*mut libarchive::archive_entry>> {
         let mut entry = std::ptr::null_mut();
-        match unsafe { libarchive::archive_read_next_header(self.0, &mut entry) } {
+        match libarchive::archive_read_next_header(self.archive, &mut entry) {
             libarchive::ARCHIVE_EOF => {
                 debug!("archive_read_next_header: reaches EOF");
                 return None;
             }
             result => {
-                if let Err(error) = analyze_result(result, self.0) {
+                if let Err(error) = analyze_result(result, self.archive) {
                     error!("archive_read_next_header error: {error:?}");
                     return Some(Err(error));
                 }
                 debug!("archive_read_next_header: success");
             }
         };
-        Some(Ok(Entry::new(self.0, entry)))
+        Some(Ok(entry))
     }
 }
 
@@ -42,7 +80,11 @@ impl Entries {
         );
         Self::path_exists(archive_path)?;
         let archive = Self::create_handle(archive_path, block_size)?;
-        Ok(Entries(archive))
+        Ok(Entries {
+            archive,
+            #[cfg(feature = "lending_iter")]
+            entry: None,
+        })
     }
 
     fn path_exists(archive_path: &Path) -> Result<()> {
@@ -74,8 +116,8 @@ impl Entries {
     fn clean(&self) -> Result<()> {
         info!("Entries::clean()");
         unsafe {
-            analyze_result(libarchive::archive_read_close(self.0), self.0)?;
-            analyze_result(libarchive::archive_read_free(self.0), self.0)
+            analyze_result(libarchive::archive_read_close(self.archive), self.archive)?;
+            analyze_result(libarchive::archive_read_free(self.archive), self.archive)
         }
     }
 
@@ -92,9 +134,9 @@ impl Entries {
 
     pub(crate) fn find_entry_by_name(&mut self, file_name: &str, decoder: Decoder) -> Result<()> {
         info!(r#"Entries::find_entry_by_name(decoder: _, file_name: "{file_name}")"#);
-        for item in self.by_ref() {
+        while let Some(item) = self.next() {
             match item {
-                Ok(entry) if unsafe { entry.file_name(decoder)? } == file_name => return Ok(()),
+                Ok(entry) if entry.file_name(decoder)? == file_name => return Ok(()),
                 Err(error) => return Err(error),
                 _ => (),
             }
@@ -121,7 +163,7 @@ impl Iterator for EntryNames {
 
     fn next(&mut self) -> Option<Self::Item> {
         let name = match self.entries.next()? {
-            Ok(entry) => unsafe { entry.file_name(self.decoder) }.map(String::from),
+            Ok(entry) => entry.file_name(self.decoder).map(String::from),
             Err(error) => Err(error),
         };
         Some(name)

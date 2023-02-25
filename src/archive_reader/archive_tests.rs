@@ -125,13 +125,39 @@ fn test_read_by_blocks() -> Result<()> {
 }
 
 #[test]
+#[cfg(not(feature = "lending_iter"))]
 fn test_file_names_from_entries() -> Result<()> {
-    let entries = Archive::open(zip_archive()).entries()?;
     let mut names = vec![];
-    for entry in entries {
-        names.push(
-            unsafe { entry?.file_name(|bytes| Some(String::from_utf8_lossy(bytes)))? }.to_string(),
-        );
+    Archive::open(zip_archive()).entries(|entry| {
+        let file_name = entry
+            .file_name(|bytes| Some(String::from_utf8_lossy(bytes)))?
+            .to_string();
+        names.push(file_name);
+        Ok(())
+    })?;
+    let expected = [
+        "content/",
+        "content/first",
+        "content/third",
+        "content/nested/",
+        "content/nested/second",
+    ];
+    assert_eq!(names, expected);
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "lending_iter")]
+fn test_file_names_from_entries() -> Result<()> {
+    use crate::LendingIterator;
+
+    let mut names = vec![];
+    let mut entries = Archive::open(zip_archive()).entries()?;
+    while let Some(entry) = entries.next() {
+        let file_name = entry?
+            .file_name(|bytes| Some(String::from_utf8_lossy(bytes)))?
+            .to_string();
+        names.push(file_name);
     }
     let expected = [
         "content/",
@@ -145,20 +171,37 @@ fn test_file_names_from_entries() -> Result<()> {
 }
 
 #[test]
+#[cfg(not(feature = "lending_iter"))]
 fn test_file_content_from_entries() -> Result<()> {
-    #[cfg(feature = "lending_iter")]
-    use crate::LendingIterator;
-
-    let entries = Archive::open(zip_archive()).entries()?;
     let mut all_content = vec![];
-    for entry in entries {
-        let entry = entry?;
+    Archive::open(zip_archive()).entries(|entry| {
         let mut content = Vec::<u8>::new();
-        let mut blocks = unsafe { entry.read_file_by_block() };
+        let mut blocks = entry.read_file_by_block();
         while let Some(block) = blocks.next() {
             content.extend(block?.iter())
         }
-        all_content.push(content)
+        all_content.push(content);
+        Ok(())
+    })?;
+    let expected: Vec<&[u8]> = vec![b"", b"first\n", b"third\n", b"", b"second\n"];
+    assert_eq!(expected, all_content);
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "lending_iter")]
+fn test_file_content_from_entries() -> Result<()> {
+    use crate::LendingIterator;
+
+    let mut all_content = vec![];
+    let mut entries = Archive::open(zip_archive()).entries()?;
+    while let Some(entry) = entries.next() {
+        let mut content = Vec::<u8>::new();
+        let mut blocks = entry?.read_file_by_block();
+        while let Some(block) = blocks.next() {
+            content.extend(block?.iter())
+        }
+        all_content.push(content);
     }
     let expected: Vec<&[u8]> = vec![b"", b"first\n", b"third\n", b"", b"second\n"];
     assert_eq!(expected, all_content);
@@ -166,19 +209,35 @@ fn test_file_content_from_entries() -> Result<()> {
 }
 
 #[test]
+#[cfg(not(feature = "lending_iter"))]
 fn test_entry_name_reproducible() -> Result<()> {
-    let entries = Archive::open(zip_archive()).entries()?;
     fn utf8_decoder(bytes: &[u8]) -> Option<Cow<str>> {
         Some(String::from_utf8_lossy(bytes))
     }
-    for entry in entries {
+    Archive::open(zip_archive()).entries(|entry| {
+        assert_eq!(
+            entry.file_name(utf8_decoder)?,
+            entry.file_name(utf8_decoder)?
+        );
+        Ok(())
+    })?;
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "lending_iter")]
+fn test_entry_name_reproducible() -> Result<()> {
+    use crate::LendingIterator;
+    fn utf8_decoder(bytes: &[u8]) -> Option<Cow<str>> {
+        Some(String::from_utf8_lossy(bytes))
+    }
+    let mut entries = Archive::open(zip_archive()).entries()?;
+    while let Some(entry) = entries.next() {
         let entry = entry?;
-        unsafe {
-            assert_eq!(
-                entry.file_name(utf8_decoder)?,
-                entry.file_name(utf8_decoder)?
-            )
-        }
+        assert_eq!(
+            entry.file_name(utf8_decoder)?,
+            entry.file_name(utf8_decoder)?
+        );
     }
     Ok(())
 }

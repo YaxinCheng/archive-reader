@@ -127,13 +127,34 @@ impl Archive {
         Ok(BlockReader::new(entries))
     }
 
-    /// `entries` returns an iterator of `Entry`s.
+    /// `entries` iterates through each file / dir in the archive,
+    /// and passes the mutable references of the entries to the process closure.
+    /// Using the functions provided on the `Entry` object,
+    /// one can obtain two things from each entry:
+    ///   1. name
+    ///   2. content
+    #[cfg(not(feature = "lending_iter"))]
+    pub fn entries<F>(&self, mut process: F) -> Result<()>
+    where
+        F: FnMut(&mut Entry) -> Result<()>,
+    {
+        info!(r#"Archive::entries(process: _)"#);
+        for entry in self.list_entries()? {
+            process(&mut entry?)?
+        }
+        Ok(())
+    }
+
+    /// `entries` returns a lending iterator of `Entry`s.
     /// Each `Entry` represents a file / dir in an archive.
     /// Using the functions provided on the `Entry` object,
     /// one can obtain two things from each entry:
     ///   1. name
     ///   2. content
-    pub fn entries(&self) -> Result<impl Iterator<Item = Result<Entry>> + Send> {
+    #[cfg(feature = "lending_iter")]
+    pub fn entries(
+        &self,
+    ) -> Result<impl for<'a> crate::LendingIterator<Item<'a> = Result<&'a mut Entry>>> {
         info!(r#"Archive::entries()"#);
         self.list_entries()
     }
