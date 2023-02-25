@@ -1,6 +1,6 @@
-use super::entries::Entries;
 use crate::error::Result;
 use crate::Archive;
+use std::borrow::Cow;
 
 const fn zip_archive() -> &'static str {
     concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/test.zip")
@@ -126,9 +126,9 @@ fn test_read_by_blocks() -> Result<()> {
 
 #[test]
 fn test_file_names_from_entries() -> Result<()> {
-    let mut entries = Entries::open(zip_archive(), 1024)?;
+    let entries = Archive::open(zip_archive()).entries()?;
     let mut names = vec![];
-    while let Some(entry) = entries.next() {
+    for entry in entries {
         names.push(
             entry?
                 .file_name(|bytes| Some(String::from_utf8_lossy(bytes)))?
@@ -151,9 +151,9 @@ fn test_file_content_from_entries() -> Result<()> {
     #[cfg(feature = "lending_iter")]
     use crate::LendingIterator;
 
-    let mut entries = Entries::open(zip_archive(), 1024)?;
+    let entries = Archive::open(zip_archive()).entries()?;
     let mut all_content = vec![];
-    while let Some(entry) = entries.next() {
+    for entry in entries {
         let entry = entry?;
         let mut content = Vec::<u8>::new();
         let mut blocks = entry.read_file_by_block();
@@ -164,5 +164,21 @@ fn test_file_content_from_entries() -> Result<()> {
     }
     let expected: Vec<&[u8]> = vec![b"", b"first\n", b"third\n", b"", b"second\n"];
     assert_eq!(expected, all_content);
+    Ok(())
+}
+
+#[test]
+fn test_entry_name_reproducible() -> Result<()> {
+    let entries = Archive::open(zip_archive()).entries()?;
+    fn utf8_decoder(bytes: &[u8]) -> Option<Cow<str>> {
+        Some(String::from_utf8_lossy(bytes))
+    }
+    for entry in entries {
+        let entry = entry?;
+        assert_eq!(
+            entry.file_name(utf8_decoder)?,
+            entry.file_name(utf8_decoder)?
+        )
+    }
     Ok(())
 }
