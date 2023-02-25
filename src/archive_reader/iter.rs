@@ -1,4 +1,5 @@
 use crate::error::{analyze_result, Result};
+use crate::LendingIterator;
 use crate::{libarchive, Entries};
 use log::{debug, error};
 use std::slice;
@@ -24,16 +25,16 @@ impl Iterator for BlockReader {
     type Item = Result<Box<[u8]>>;
 
     fn next(&mut self) -> Option<Result<Box<[u8]>>> {
-        self.block_reader.next()
+        Iterator::next(&mut self.block_reader)
     }
 }
 
 #[cfg(feature = "lending_iter")]
-impl crate::LendingIterator for BlockReader {
+impl LendingIterator for BlockReader {
     type Item<'me> = Result<&'me [u8]>;
 
     fn next(&mut self) -> Option<Self::Item<'_>> {
-        self.block_reader.next()
+        crate::LendingIterator::next(&mut self.block_reader)
     }
 }
 
@@ -89,7 +90,6 @@ impl BlockReaderBorrowed {
     }
 }
 
-#[cfg(not(feature = "lending_iter"))]
 impl Iterator for BlockReaderBorrowed {
     type Item = Result<Box<[u8]>>;
 
@@ -101,8 +101,7 @@ impl Iterator for BlockReaderBorrowed {
     }
 }
 
-#[cfg(feature = "lending_iter")]
-impl crate::LendingIterator for BlockReaderBorrowed {
+impl LendingIterator for BlockReaderBorrowed {
     type Item<'me> = Result<&'me [u8]>;
 
     fn next(&mut self) -> Option<Self::Item<'_>> {

@@ -1,9 +1,7 @@
 use crate::archive_reader::entries::Entries;
-use crate::archive_reader::entry::Entry;
-use crate::archive_reader::iter::BlockReader;
-use crate::error::{path_does_not_exist, Result};
-use crate::lending_iter::LendingIterator;
-use crate::{Decoder, Error};
+use crate::archive_reader::iter::{BlockReader, BlockReaderBorrowed};
+use crate::error::Result;
+use crate::Decoder;
 use std::borrow::Cow;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -88,12 +86,14 @@ impl Archive {
     /// `read_file` reads the content of a file into the given output.
     /// It also returns the total number of bytes read.
     pub fn read_file<W: Write>(&self, file_name: &str, mut output: W) -> Result<usize> {
-        let mut blocks = self.read_file_by_block(file_name)?;
+        let mut entries = self.list_entries()?;
+        entries.find_entry_by_name(self.get_decoding_fn(), file_name)?;
+        let mut blocks = BlockReaderBorrowed::from(&entries);
         let mut written = 0;
-        while let Some(block) = blocks.next() {
+        while let Some(block) = crate::LendingIterator::next(&mut blocks) {
             let block = block?;
             written = block.len();
-            output.write_all(block.as_ref())?;
+            output.write_all(block)?;
         }
         Ok(written)
     }
@@ -116,7 +116,7 @@ impl Archive {
     pub fn read_file_by_block(
         &self,
         file_name: &str,
-    ) -> Result<impl for<'a> LendingIterator<Item<'a> = Result<&'a [u8]>> + Send> {
+    ) -> Result<impl for<'a> crate::LendingIterator<Item<'a> = Result<&'a [u8]>> + Send> {
         let mut entries = self.list_entries()?;
         entries.find_entry_by_name(self.get_decoding_fn(), file_name)?;
         Ok(BlockReader::new(entries))

@@ -1,12 +1,10 @@
-use crate::archive_reader::iter;
-use crate::archive_reader::iter::BlockReaderBorrowed;
-use crate::error::{analyze_result, Error, Result};
+use super::iter::BlockReaderBorrowed;
+use crate::error::{Error, Result};
 use crate::libarchive;
 use crate::locale::UTF8LocaleGuard;
-use log::error;
+use log::{error, info};
 use std::borrow::Cow;
 use std::ffi::CStr;
-use std::io::Write;
 
 pub struct Entry {
     archive: *mut libarchive::archive,
@@ -27,6 +25,7 @@ impl Entry {
     where
         F: FnOnce(&[u8]) -> Option<Cow<str>>,
     {
+        info!(r#"Entry::file_name(decode: _)"#);
         let _utf8_locale_guard = UTF8LocaleGuard::new();
 
         let entry_name = unsafe { libarchive::archive_entry_pathname(self.entry) };
@@ -50,6 +49,7 @@ impl Entry {
 
     #[cfg(not(feature = "lending_iter"))]
     pub fn read_file_by_block(&self) -> impl Iterator<Item = Result<Box<[u8]>>> + Send {
+        info!(r#"Entry::read_file_by_block()"#);
         BlockReaderBorrowed::new(self.archive)
     }
 
@@ -57,6 +57,7 @@ impl Entry {
     pub fn read_file_by_block(
         &self,
     ) -> impl for<'a> crate::LendingIterator<Item<'a> = Result<&'a [u8]>> + Send {
+        info!(r#"Entry::read_file_by_block()"#);
         BlockReaderBorrowed::new(self.archive)
     }
 }
