@@ -6,5 +6,4 @@ mod entries;
 mod entry;
 
 pub use archive::*;
-pub use entries::Entries;
 pub use entry::Entry;

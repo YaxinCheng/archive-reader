@@ -1,7 +1,7 @@
 use crate::archive_reader::blocks::{BlockReader, BlockReaderBorrowed};
 use crate::archive_reader::entries::Entries;
 use crate::error::Result;
-use crate::Decoder;
+use crate::{Decoder, Entry};
 use log::info;
 use std::borrow::Cow;
 use std::io::Write;
@@ -127,7 +127,13 @@ impl Archive {
         Ok(BlockReader::new(entries))
     }
 
-    pub fn entries(&self) -> Result<Entries> {
+    /// `entries` returns an iterator of `Entry`s.
+    /// Each `Entry` represents a file / dir in an archive.
+    /// Using the functions provided on the `Entry` object,
+    /// one can obtain two things from each entry:
+    ///   1. name
+    ///   2. content
+    pub fn entries(&self) -> Result<impl Iterator<Item = Result<Entry>> + Send> {
         info!(r#"Archive::entries()"#);
         self.list_entries()
     }

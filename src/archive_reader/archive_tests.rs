@@ -1,6 +1,6 @@
+use super::entries::Entries;
 use crate::error::Result;
-use crate::lending_iter::LendingIterator;
-use crate::{Archive, Entries};
+use crate::Archive;
 
 const fn zip_archive() -> &'static str {
     concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/test.zip")

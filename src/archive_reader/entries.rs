@@ -1,38 +1,33 @@
 use super::entry::Entry;
 use crate::error::{analyze_result, path_does_not_exist, Error, Result};
-use crate::lending_iter::LendingIterator;
 use crate::{libarchive, Decoder};
 use log::{debug, error, info};
 use std::ffi::CString;
 use std::path::Path;
 
-pub struct Entries {
-    pub(crate) archive: *mut libarchive::archive,
-    current_entry: Option<Entry>,
-}
+pub(crate) struct Entries(pub(crate) *mut libarchive::archive);
 
 unsafe impl Send for Entries {}
 
-impl LendingIterator for Entries {
-    type Item<'me> = Result<&'me Entry>;
+impl Iterator for Entries {
+    type Item = Result<Entry>;
 
-    fn next(&mut self) -> Option<Self::Item<'_>> {
+    fn next(&mut self) -> Option<Self::Item> {
         let mut entry = std::ptr::null_mut();
-        match unsafe { libarchive::archive_read_next_header(self.archive, &mut entry) } {
+        match unsafe { libarchive::archive_read_next_header(self.0, &mut entry) } {
             libarchive::ARCHIVE_EOF => {
                 debug!("archive_read_next_header: reaches EOF");
                 return None;
             }
             result => {
-                if let Err(error) = analyze_result(result, self.archive) {
+                if let Err(error) = analyze_result(result, self.0) {
                     error!("archive_read_next_header error: {error:?}");
                     return Some(Err(error));
                 }
                 debug!("archive_read_next_header: success");
             }
         };
-        self.current_entry.replace(Entry::new(self.archive, entry));
-        self.current_entry.as_ref().map(Ok)
+        Some(Ok(Entry::new(self.0, entry)))
     }
 }
 
@@ -47,10 +42,7 @@ impl Entries {
         );
         Self::path_exists(archive_path)?;
         let archive = Self::create_handle(archive_path, block_size)?;
-        Ok(Entries {
-            archive,
-            current_entry: None,
-        })
+        Ok(Entries(archive))
     }
 
     fn path_exists(archive_path: &Path) -> Result<()> {
@@ -82,8 +74,8 @@ impl Entries {
     fn clean(&self) -> Result<()> {
         info!("Entries::clean()");
         unsafe {
-            analyze_result(libarchive::archive_read_close(self.archive), self.archive)?;
-            analyze_result(libarchive::archive_read_free(self.archive), self.archive)
+            analyze_result(libarchive::archive_read_close(self.0), self.0)?;
+            analyze_result(libarchive::archive_read_free(self.0), self.0)
         }
     }
 

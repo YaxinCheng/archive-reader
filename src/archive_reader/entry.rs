@@ -1,10 +1,12 @@
 use super::blocks::BlockReaderBorrowed;
 use crate::error::{Error, Result};
+use crate::lending_iter::LendingIterator;
 use crate::libarchive;
 use crate::locale::UTF8LocaleGuard;
 use log::{error, info};
 use std::borrow::Cow;
 use std::ffi::CStr;
+use std::io::Write;
 
 pub struct Entry {
     archive: *mut libarchive::archive,
@@ -48,16 +50,28 @@ impl Entry {
     }
 
     #[cfg(not(feature = "lending_iter"))]
-    pub fn read_file_by_block(&self) -> impl Iterator<Item = Result<Box<[u8]>>> + Send {
+    pub fn read_file_by_block(self) -> impl Iterator<Item = Result<Box<[u8]>>> + Send {
         info!(r#"Entry::read_file_by_block()"#);
         BlockReaderBorrowed::new(self.archive)
     }
 
     #[cfg(feature = "lending_iter")]
     pub fn read_file_by_block(
-        &self,
+        self,
     ) -> impl for<'a> crate::LendingIterator<Item<'a> = Result<&'a [u8]>> + Send {
         info!(r#"Entry::read_file_by_block()"#);
         BlockReaderBorrowed::new(self.archive)
+    }
+
+    pub fn read_file<W: Write>(self, mut output: W) -> Result<usize> {
+        info!(r#"Entry::read_file(output: _)"#);
+        let mut blocks = BlockReaderBorrowed::new(self.archive);
+        let mut written = 0;
+        while let Some(block) = LendingIterator::next(&mut blocks) {
+            let block = block?;
+            written += block.len();
+            output.write_all(block)?;
+        }
+        Ok(written)
     }
 }

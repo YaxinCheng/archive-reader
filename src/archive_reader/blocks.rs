@@ -1,6 +1,7 @@
+use super::entries::Entries;
 use crate::error::{analyze_result, Result};
+use crate::libarchive;
 use crate::LendingIterator;
-use crate::{libarchive, Entries};
 use log::{debug, error};
 use std::slice;
 
@@ -48,7 +49,7 @@ unsafe impl Send for BlockReaderBorrowed {}
 
 impl From<&Entries> for BlockReaderBorrowed {
     fn from(entries: &Entries) -> Self {
-        BlockReaderBorrowed::new(entries.archive)
+        BlockReaderBorrowed::new(entries.0)
     }
 }
 
