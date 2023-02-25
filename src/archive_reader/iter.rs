@@ -1,101 +1,21 @@
-use super::reader::ArchiveReader;
-use crate::error::{analyze_result, Error, Result};
-use crate::libarchive;
-use crate::locale::UTF8LocaleGuard;
-use crate::{Decoder, LendingIterator};
+use crate::error::{analyze_result, Result};
+use crate::{libarchive, Entries};
 use log::{debug, error};
-use std::borrow::Cow;
-use std::ffi::CStr;
 use std::slice;
-
-pub(crate) struct EntryIter {
-    /// _reader_guard prevents the ArchiveReader from drop until the Iterator itself is dropped.
-    _reader_guard: ArchiveReader,
-    iterator: EntryIterBorrowed,
-}
-
-impl EntryIter {
-    pub fn new(reader: ArchiveReader, decoding: Decoder) -> Self {
-        let iterator = EntryIterBorrowed::new(reader.handle, decoding);
-        Self {
-            _reader_guard: reader,
-            iterator,
-        }
-    }
-}
-
-impl Iterator for EntryIter {
-    type Item = Result<String>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        Some(self.iterator.next()?.map(String::from))
-    }
-}
-
-pub(crate) struct EntryIterBorrowed {
-    handle: *mut libarchive::archive,
-    decoding: Decoder,
-}
-
-unsafe impl Send for EntryIterBorrowed {}
-
-impl EntryIterBorrowed {
-    pub fn new(handle: *mut libarchive::archive, decoding: Decoder) -> Self {
-        Self { handle, decoding }
-    }
-}
-
-impl LendingIterator for EntryIterBorrowed {
-    type Item<'a> = Result<Cow<'a, str>>;
-
-    fn next(&mut self) -> Option<Self::Item<'_>> {
-        debug_assert!(!self.handle.is_null(), "EntryIterBorrowed::handle is null");
-        let _locale_guard = UTF8LocaleGuard::new();
-        let mut entry = std::ptr::null_mut();
-        match unsafe { libarchive::archive_read_next_header(self.handle, &mut entry) } {
-            libarchive::ARCHIVE_EOF => {
-                debug!("archive_read_next_header: reaches EOF");
-                return None;
-            }
-            result => {
-                if let Err(error) = analyze_result(result, self.handle) {
-                    error!("archive_read_next_header error: {error:?}");
-                    return Some(Err(error));
-                }
-                debug!("archive_read_next_header: success");
-            }
-        };
-        let entry_name = unsafe { libarchive::archive_entry_pathname(entry) };
-        if entry_name.is_null() {
-            error!("archive_entry_pathname returns null");
-            return Some(Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "archive entry contains invalid name".to_string(),
-            )
-            .into()));
-        }
-        let entry_name_in_bytes = unsafe { CStr::from_ptr(entry_name).to_bytes() };
-        match (self.decoding)(entry_name_in_bytes) {
-            Some(entry_name) => Some(Ok(entry_name)),
-            None => {
-                error!("failed to decode entry name");
-                Some(Err(Error::Encoding))
-            }
-        }
-    }
-}
 
 /// `BlockReader` is an iterator that reads an archive entry block by block.
 pub(crate) struct BlockReader {
-    reader: ArchiveReader,
+    entries: Entries,
     /// ended is set to true when the iterator has reached its end.
     ended: bool,
 }
 
+unsafe impl Send for BlockReader {}
+
 impl BlockReader {
-    pub fn new(archive_reader: ArchiveReader) -> Self {
+    pub fn new(entries: Entries) -> Self {
         BlockReader {
-            reader: archive_reader,
+            entries,
             ended: false,
         }
     }
@@ -109,7 +29,7 @@ impl BlockReader {
         let mut size = 0;
         match unsafe {
             libarchive::archive_read_data_block(
-                self.reader.handle,
+                self.entries.archive,
                 &mut buf,
                 &mut size,
                 &mut offset,
@@ -120,7 +40,7 @@ impl BlockReader {
                 self.ended = true;
                 Ok(&[])
             }
-            result => match analyze_result(result, self.reader.handle) {
+            result => match analyze_result(result, self.entries.archive) {
                 Ok(()) => {
                     let content = unsafe { slice::from_raw_parts(buf as *const u8, size) };
                     Ok(content)

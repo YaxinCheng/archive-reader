@@ -1,4 +1,3 @@
-mod reader_tests;
 mod archive_tests;
 
 use std::borrow::Cow;

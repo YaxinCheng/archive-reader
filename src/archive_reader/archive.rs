@@ -1,6 +1,8 @@
-use super::reader::ArchiveReader;
-use crate::error::Result;
-use crate::Decoder;
+use crate::archive_reader::entries::Entries;
+use crate::archive_reader::entry::Entry;
+use crate::error::{path_does_not_exist, Result};
+use crate::lending_iter::LendingIterator;
+use crate::{Decoder, Error};
 use std::borrow::Cow;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -78,16 +80,22 @@ impl Archive {
     /// `list_file_names` return an iterator of file names extracted from the archive.
     /// The file names are decoded using the decoder.
     pub fn list_file_names(&self) -> Result<impl Iterator<Item = Result<String>> + Send> {
-        Ok(self
-            .create_reader()?
-            .list_file_names(self.get_decoding_fn()))
+        self.list_entries()
+            .map(|entries| entries.file_names(self.get_decoding_fn()))
     }
 
     /// `read_file` reads the content of a file into the given output.
     /// It also returns the total number of bytes read.
     pub fn read_file<W: Write>(&self, file_name: &str, output: W) -> Result<usize> {
-        self.create_reader()?
-            .read_file(file_name, output, self.get_decoding_fn())
+        let mut entries = self.list_entries()?;
+        while let Some(entry) = entries.next() {
+            let entry = entry?;
+            let entry_file_name = entry.file_name(self.get_decoding_fn())?;
+            if entry_file_name == file_name {
+                return entry.read_file(output);
+            }
+        }
+        Err(path_does_not_exist(file_name.to_string()))
     }
 
     /// `read_file_by_block` reads the content of a file,
@@ -97,8 +105,15 @@ impl Archive {
         &self,
         file_name: &str,
     ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send> {
-        self.create_reader()?
-            .read_file_by_block(file_name, self.get_decoding_fn())
+        let mut entries = self.list_entries()?;
+        while let Some(entry) = entries.next() {
+            let entry = entry?;
+            let entry_file_name = entry.file_name(self.get_decoding_fn())?;
+            if entry_file_name == file_name {
+                return Ok(entry.read_file_by_block());
+            }
+        }
+        Err(path_does_not_exist(file_name.to_string()))
     }
 
     /// `read_file_by_block` reads the content of a file,
@@ -107,16 +122,23 @@ impl Archive {
     pub fn read_file_by_block(
         &self,
         file_name: &str,
-    ) -> Result<impl for<'a> crate::LendingIterator<Item<'a> = Result<&'a [u8]>> + Send> {
-        self.create_reader()?
-            .read_file_by_block(file_name, self.get_decoding_fn())
+    ) -> Result<impl for<'a> LendingIterator<Item<'a> = Result<&'a [u8]>> + Send> {
+        let mut entries = self.list_entries()?;
+        while let Some(entry) = entries.next() {
+            let entry = entry?;
+            let entry_file_name = entry.file_name(self.get_decoding_fn())?;
+            if entry_file_name == file_name {
+                return Ok(entry.read_file_by_block());
+            }
+        }
+        Err(path_does_not_exist(file_name.to_string()))
     }
 }
 
 // util functions
 impl Archive {
-    fn create_reader(&self) -> Result<ArchiveReader> {
-        ArchiveReader::open(&self.file_path, self.block_size)
+    fn list_entries(&self) -> Result<Entries> {
+        Entries::open(&self.file_path, self.block_size)
     }
 
     fn get_decoding_fn(&self) -> Decoder {

@@ -1,13 +1,13 @@
-use crate::error::{analyze_result, Error, Result};
+use super::entry::Entry;
+use crate::error::{analyze_result, path_does_not_exist, Error, Result};
 use crate::lending_iter::LendingIterator;
-use crate::libarchive;
-use crate::locale::UTF8LocaleGuard;
+use crate::{libarchive, Decoder};
 use log::{debug, error, info};
-use std::borrow::Cow;
-use std::ffi::CStr;
+use std::ffi::CString;
+use std::path::Path;
 
 pub struct Entries {
-    handle: *mut libarchive::archive,
+    pub(crate) archive: *mut libarchive::archive,
     current_entry: Option<Entry>,
 }
 
@@ -18,13 +18,13 @@ impl LendingIterator for Entries {
 
     fn next(&mut self) -> Option<Self::Item<'_>> {
         let mut entry = std::ptr::null_mut();
-        match unsafe { libarchive::archive_read_next_header(self.handle, &mut entry) } {
+        match unsafe { libarchive::archive_read_next_header(self.archive, &mut entry) } {
             libarchive::ARCHIVE_EOF => {
                 debug!("archive_read_next_header: reaches EOF");
                 return None;
             }
             result => {
-                if let Err(error) = analyze_result(result, self.handle) {
+                if let Err(error) = analyze_result(result, self.archive) {
                     error!("archive_read_next_header error: {error:?}");
                     return Some(Err(error));
                 }
@@ -37,12 +37,79 @@ impl LendingIterator for Entries {
 }
 
 impl Entries {
+    /// `open` is the constructor for ArchiveReader.
+    /// It takes in the path to the archive.
+    pub(crate) fn open<P: AsRef<Path>>(archive_path: P, block_size: usize) -> Result<Self> {
+        let archive_path = archive_path.as_ref();
+        info!(
+            r#"ArchiveReader::open(archive_path: "{}")"#,
+            archive_path.display()
+        );
+        Self::path_exists(archive_path)?;
+        let archive = Self::create_handle(archive_path, block_size)?;
+        Ok(Entries {
+            archive,
+            current_entry: None,
+        })
+    }
+
+    fn path_exists(archive_path: &Path) -> Result<()> {
+        if !archive_path.exists() {
+            error!(r#"path "{}" does not exist"#, archive_path.display());
+            return Err(path_does_not_exist(
+                archive_path.to_string_lossy().to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn create_handle(archive_path: &Path, block_size: usize) -> Result<*mut libarchive::archive> {
+        let archive_path = CString::new(archive_path.to_str().ok_or(Error::PathNotUtf8)?)
+            .expect("An existing path cannot be null");
+        unsafe {
+            let handle = libarchive::archive_read_new();
+            analyze_result(libarchive::archive_read_support_filter_all(handle), handle)?;
+            analyze_result(libarchive::archive_read_support_format_raw(handle), handle)?;
+            analyze_result(libarchive::archive_read_support_format_all(handle), handle)?;
+            analyze_result(
+                libarchive::archive_read_open_filename(handle, archive_path.as_ptr(), block_size),
+                handle,
+            )?;
+            Ok(handle)
+        }
+    }
+
     fn clean(&self) -> Result<()> {
         info!("Entries::clean()");
         unsafe {
-            analyze_result(libarchive::archive_read_close(self.handle), self.handle)?;
-            analyze_result(libarchive::archive_read_free(self.handle), self.handle)
+            analyze_result(libarchive::archive_read_close(self.archive), self.archive)?;
+            analyze_result(libarchive::archive_read_free(self.archive), self.archive)
         }
+    }
+
+    pub(crate) fn file_names(
+        self,
+        decoder: Decoder,
+    ) -> impl Iterator<Item = Result<String>> + Send {
+        EntryNames {
+            entries: self,
+            decoder,
+        }
+    }
+
+    pub(crate) fn find_entry<P, F, R>(&mut self, predicate: P, process: F) -> Result<R>
+    where
+        P: Fn(&Entry) -> bool,
+        F: FnOnce(&Entry) -> R,
+    {
+        while let Some(item) = self.next() {
+            match item {
+                Ok(entry) if predicate(entry) => return Ok(process(entry)),
+                Err(error) => return Err(error),
+                _ => (),
+            }
+        }
+        Err(path_does_not_exist("find_entry_failed".to_string()))
     }
 }
 
@@ -54,33 +121,19 @@ impl Drop for Entries {
     }
 }
 
-pub struct Entry(*mut libarchive::archive_entry);
+pub(crate) struct EntryNames {
+    entries: Entries,
+    decoder: Decoder,
+}
 
-unsafe impl Send for Entry {}
+impl Iterator for EntryNames {
+    type Item = Result<String>;
 
-impl Entry {
-    pub fn file_name<F>(&self, decode: F) -> Result<Cow<str>>
-    where
-        F: FnOnce(&[u8]) -> Option<Cow<str>>,
-    {
-        let _utf8_locale_guard = UTF8LocaleGuard::new();
-
-        let entry_name = unsafe { libarchive::archive_entry_pathname(self.0) };
-        if entry_name.is_null() {
-            error!("archive_entry_pathname returns null");
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "archive entry contains invalid name".to_string(),
-            )
-            .into());
-        }
-        let entry_name_in_bytes = unsafe { CStr::from_ptr(entry_name).to_bytes() };
-        match decode(entry_name_in_bytes) {
-            Some(entry_name) => Ok(entry_name),
-            None => {
-                error!("failed to decode entry name");
-                Err(Error::Encoding)
-            }
-        }
+    fn next(&mut self) -> Option<Self::Item> {
+        let name = match self.entries.next()? {
+            Ok(entry) => entry.file_name(self.decoder).map(String::from),
+            Err(error) => Err(error),
+        };
+        Some(name)
     }
 }
