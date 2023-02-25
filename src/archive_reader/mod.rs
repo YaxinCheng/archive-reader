@@ -1,9 +1,9 @@
 mod archive;
 #[cfg(test)]
 mod archive_tests;
+mod blocks;
 mod entries;
 mod entry;
-mod iter;
 
 pub use archive::*;
 pub use entries::Entries;

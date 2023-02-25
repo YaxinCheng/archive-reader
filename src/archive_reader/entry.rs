@@ -1,4 +1,4 @@
-use super::iter::BlockReaderBorrowed;
+use super::blocks::BlockReaderBorrowed;
 use crate::error::{Error, Result};
 use crate::libarchive;
 use crate::locale::UTF8LocaleGuard;

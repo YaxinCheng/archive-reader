@@ -1,7 +1,8 @@
+use crate::archive_reader::blocks::{BlockReader, BlockReaderBorrowed};
 use crate::archive_reader::entries::Entries;
-use crate::archive_reader::iter::{BlockReader, BlockReaderBorrowed};
 use crate::error::Result;
 use crate::Decoder;
+use log::info;
 use std::borrow::Cow;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -79,6 +80,7 @@ impl Archive {
     /// `list_file_names` return an iterator of file names extracted from the archive.
     /// The file names are decoded using the decoder.
     pub fn list_file_names(&self) -> Result<impl Iterator<Item = Result<String>> + Send> {
+        info!("Archive::list_file_names()");
         self.list_entries()
             .map(|entries| entries.file_names(self.get_decoding_fn()))
     }
@@ -86,6 +88,7 @@ impl Archive {
     /// `read_file` reads the content of a file into the given output.
     /// It also returns the total number of bytes read.
     pub fn read_file<W: Write>(&self, file_name: &str, mut output: W) -> Result<usize> {
+        info!(r#"Archive::read_file(file_name: "{file_name}", output: _)"#);
         let mut entries = self.list_entries()?;
         entries.find_entry_by_name(self.get_decoding_fn(), file_name)?;
         let mut blocks = BlockReaderBorrowed::from(&entries);
@@ -105,6 +108,7 @@ impl Archive {
         &self,
         file_name: &str,
     ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send> {
+        info!(r#"Archive::read_file_by_block(file_name: "{file_name}")"#);
         let mut entries = self.list_entries()?;
         entries.find_entry_by_name(self.get_decoding_fn(), file_name)?;
         Ok(BlockReader::new(entries))
@@ -117,12 +121,14 @@ impl Archive {
         &self,
         file_name: &str,
     ) -> Result<impl for<'a> crate::LendingIterator<Item<'a> = Result<&'a [u8]>> + Send> {
+        info!(r#"Archive::read_file_by_block(file_name: "{file_name}")"#);
         let mut entries = self.list_entries()?;
         entries.find_entry_by_name(self.get_decoding_fn(), file_name)?;
         Ok(BlockReader::new(entries))
     }
 
     pub fn entries(&self) -> Result<Entries> {
+        info!(r#"Archive::entries()"#);
         self.list_entries()
     }
 }

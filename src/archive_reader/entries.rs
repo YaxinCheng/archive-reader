@@ -91,6 +91,7 @@ impl Entries {
         self,
         decoder: Decoder,
     ) -> impl Iterator<Item = Result<String>> + Send {
+        info!(r#"Entries::file_names(decoder: _)"#);
         EntryNames {
             entries: self,
             decoder,
@@ -98,6 +99,7 @@ impl Entries {
     }
 
     pub(crate) fn find_entry_by_name(&mut self, decoder: Decoder, file_name: &str) -> Result<()> {
+        info!(r#"Entries::find_entry_by_name(decoder: _, file_name: "{file_name}")"#);
         while let Some(item) = self.next() {
             match item {
                 Ok(entry) if entry.file_name(decoder)? == file_name => return Ok(()),
@@ -112,7 +114,7 @@ impl Entries {
 impl Drop for Entries {
     fn drop(&mut self) {
         if let Err(error) = self.clean() {
-            error!("Failed to clean up ArchiveReader: {error:?}")
+            error!("Failed to clean up Entries: {error:?}")
         }
     }
 }

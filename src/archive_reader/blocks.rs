@@ -6,7 +6,7 @@ use std::slice;
 
 /// `BlockReader` is an iterator that reads an archive entry block by block.
 pub(crate) struct BlockReader {
-    _entries: Entries,
+    _entries: Entries, // Kept in the structure to prevent it from being dropped.
     block_reader: BlockReaderBorrowed,
 }
 
@@ -60,7 +60,7 @@ impl BlockReaderBorrowed {
         }
     }
 
-    pub fn read_block(&mut self) -> Result<&[u8]> {
+    pub(crate) fn read_block(&mut self) -> Result<&[u8]> {
         if self.ended {
             return Ok(&[]);
         }
