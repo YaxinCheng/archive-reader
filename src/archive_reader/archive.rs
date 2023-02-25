@@ -121,6 +121,10 @@ impl Archive {
         entries.find_entry_by_name(self.get_decoding_fn(), file_name)?;
         Ok(BlockReader::new(entries))
     }
+
+    pub fn entries(&self) -> Result<Entries> {
+        self.list_entries()
+    }
 }
 
 // util functions

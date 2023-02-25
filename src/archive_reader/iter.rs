@@ -11,7 +11,7 @@ pub(crate) struct BlockReader {
 
 impl BlockReader {
     pub fn new(entries: Entries) -> Self {
-        let block_reader = BlockReaderBorrowed::new(&entries);
+        let block_reader = BlockReaderBorrowed::from(&entries);
         BlockReader {
             _entries: entries,
             block_reader,
@@ -45,10 +45,16 @@ pub(crate) struct BlockReaderBorrowed {
 
 unsafe impl Send for BlockReaderBorrowed {}
 
+impl From<&Entries> for BlockReaderBorrowed {
+    fn from(entries: &Entries) -> Self {
+        BlockReaderBorrowed::new(entries.archive)
+    }
+}
+
 impl BlockReaderBorrowed {
-    pub(crate) fn new(entries: &Entries) -> Self {
+    pub(crate) fn new(archive: *mut libarchive::archive) -> Self {
         Self {
-            archive: entries.archive,
+            archive,
             ended: false,
         }
     }

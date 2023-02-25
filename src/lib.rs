@@ -22,6 +22,8 @@
 //! * `lending_iter` - Enables `LendingIterator` implementation, which avoids heap allocations for `read_file_by_block` function.
 //!
 
+extern crate core;
+
 mod archive_reader;
 pub mod error;
 mod lending_iter;

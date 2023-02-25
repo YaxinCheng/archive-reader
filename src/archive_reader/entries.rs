@@ -31,7 +31,7 @@ impl LendingIterator for Entries {
                 debug!("archive_read_next_header: success");
             }
         };
-        self.current_entry.replace(Entry(entry));
+        self.current_entry.replace(Entry::new(self.archive, entry));
         self.current_entry.as_ref().map(Ok)
     }
 }

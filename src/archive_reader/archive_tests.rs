@@ -1,6 +1,18 @@
-use super::*;
 use crate::error::Result;
-use crate::Archive;
+use crate::lending_iter::LendingIterator;
+use crate::{Archive, Entries};
+
+const fn zip_archive() -> &'static str {
+    concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/test.zip")
+}
+
+const fn seven_z_archive() -> &'static str {
+    concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/test.7z")
+}
+
+const fn rar_archive() -> &'static str {
+    concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/test.rar")
+}
 
 #[test]
 fn test_list_zip_file_names() -> Result<()> {
@@ -73,6 +85,11 @@ fn test_empty_file() -> Result<()> {
     test_read_file_to_bytes(zip_path, "empty", b"")
 }
 
+#[test]
+fn test_read_dir() -> Result<()> {
+    test_read_file_to_bytes(zip_archive(), "content/", b"")
+}
+
 fn test_read_file_to_bytes(archive_path: &str, content_path: &str, expected: &[u8]) -> Result<()> {
     let mut output = vec![];
     let _ = Archive::open(archive_path).read_file(content_path, &mut output)?;
@@ -104,5 +121,48 @@ fn test_read_by_blocks() -> Result<()> {
     }
     assert!(num_of_blocks > 1);
     assert_eq!(expected, bytes.as_slice());
+    Ok(())
+}
+
+#[test]
+fn test_file_names_from_entries() -> Result<()> {
+    let mut entries = Entries::open(zip_archive(), 1024)?;
+    let mut names = vec![];
+    while let Some(entry) = entries.next() {
+        names.push(
+            entry?
+                .file_name(|bytes| Some(String::from_utf8_lossy(bytes)))?
+                .to_string(),
+        );
+    }
+    let expected = [
+        "content/",
+        "content/first",
+        "content/third",
+        "content/nested/",
+        "content/nested/second",
+    ];
+    assert_eq!(names, expected);
+    Ok(())
+}
+
+#[test]
+fn test_file_content_from_entries() -> Result<()> {
+    #[cfg(feature = "lending_iter")]
+    use crate::LendingIterator;
+
+    let mut entries = Entries::open(zip_archive(), 1024)?;
+    let mut all_content = vec![];
+    while let Some(entry) = entries.next() {
+        let entry = entry?;
+        let mut content = Vec::<u8>::new();
+        let mut blocks = entry.read_file_by_block();
+        while let Some(block) = blocks.next() {
+            content.extend(block?.iter())
+        }
+        all_content.push(content)
+    }
+    let expected: Vec<&[u8]> = vec![b"", b"first\n", b"third\n", b"", b"second\n"];
+    assert_eq!(expected, all_content);
     Ok(())
 }
