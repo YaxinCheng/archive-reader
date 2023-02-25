@@ -44,7 +44,7 @@ impl Entry {
         info!(r#"Entry::file_name(decode: _)"#);
         let _utf8_locale_guard = UTF8LocaleGuard::new();
 
-        let entry_name = unsafe { libarchive::archive_entry_pathname(self.entry) };
+        let entry_name = libarchive::archive_entry_pathname(self.entry);
         if entry_name.is_null() {
             error!("archive_entry_pathname returns null");
             return Err(std::io::Error::new(
@@ -53,7 +53,7 @@ impl Entry {
             )
             .into());
         }
-        let entry_name_in_bytes = unsafe { CStr::from_ptr(entry_name).to_bytes() };
+        let entry_name_in_bytes = CStr::from_ptr(entry_name).to_bytes();
         match decode(entry_name_in_bytes) {
             Some(entry_name) => Ok(entry_name),
             None => {
