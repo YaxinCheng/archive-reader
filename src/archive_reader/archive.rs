@@ -81,8 +81,7 @@ impl Archive {
     /// The file names are decoded using the decoder.
     pub fn list_file_names(&self) -> Result<impl Iterator<Item = Result<String>> + Send> {
         info!("Archive::list_file_names()");
-        self.list_entries()
-            .map(|entries| entries.file_names(self.get_decoding_fn()))
+        self.list_entries().map(|entries| entries.file_names())
     }
 
     /// `read_file` reads the content of a file into the given output.
@@ -90,7 +89,7 @@ impl Archive {
     pub fn read_file<W: Write>(&self, file_name: &str, mut output: W) -> Result<usize> {
         info!(r#"Archive::read_file(file_name: "{file_name}", output: _)"#);
         let mut entries = self.list_entries()?;
-        entries.find_entry_by_name(file_name, self.get_decoding_fn())?;
+        entries.find_entry_by_name(file_name)?;
         let mut blocks = BlockReaderBorrowed::from(&entries);
         let mut written = 0;
         while let Some(block) = crate::LendingIterator::next(&mut blocks) {
@@ -110,7 +109,7 @@ impl Archive {
     ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send> {
         info!(r#"Archive::read_file_by_block(file_name: "{file_name}")"#);
         let mut entries = self.list_entries()?;
-        entries.find_entry_by_name(file_name, self.get_decoding_fn())?;
+        entries.find_entry_by_name(file_name)?;
         Ok(BlockReader::new(entries))
     }
 
@@ -123,7 +122,7 @@ impl Archive {
     ) -> Result<impl for<'a> crate::LendingIterator<Item<'a> = Result<&'a [u8]>> + Send> {
         info!(r#"Archive::read_file_by_block(file_name: "{file_name}")"#);
         let mut entries = self.list_entries()?;
-        entries.find_entry_by_name(file_name, self.get_decoding_fn())?;
+        entries.find_entry_by_name(file_name)?;
         Ok(BlockReader::new(entries))
     }
 
@@ -163,7 +162,7 @@ impl Archive {
 // util functions
 impl Archive {
     fn list_entries(&self) -> Result<Entries> {
-        Entries::open(&self.file_path, self.block_size)
+        Entries::open(&self.file_path, self.block_size, self.get_decoding_fn())
     }
 
     fn get_decoding_fn(&self) -> Decoder {
