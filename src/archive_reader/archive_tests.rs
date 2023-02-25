@@ -125,6 +125,7 @@ fn test_read_by_blocks() -> Result<()> {
 }
 
 #[test]
+#[cfg(not(feature = "lending_iter"))]
 fn test_file_names_from_entries() -> Result<()> {
     let mut names = vec![];
     Archive::open(zip_archive()).entries(|entry| {
@@ -146,10 +147,32 @@ fn test_file_names_from_entries() -> Result<()> {
 }
 
 #[test]
-fn test_file_content_from_entries() -> Result<()> {
-    #[cfg(feature = "lending_iter")]
+#[cfg(feature = "lending_iter")]
+fn test_file_names_from_entries() -> Result<()> {
     use crate::LendingIterator;
 
+    let mut names = vec![];
+    let mut entries = Archive::open(zip_archive()).entries()?;
+    while let Some(entry) = entries.next() {
+        let file_name = entry?
+            .file_name(|bytes| Some(String::from_utf8_lossy(bytes)))?
+            .to_string();
+        names.push(file_name);
+    }
+    let expected = [
+        "content/",
+        "content/first",
+        "content/third",
+        "content/nested/",
+        "content/nested/second",
+    ];
+    assert_eq!(names, expected);
+    Ok(())
+}
+
+#[test]
+#[cfg(not(feature = "lending_iter"))]
+fn test_file_content_from_entries() -> Result<()> {
     let mut all_content = vec![];
     Archive::open(zip_archive()).entries(|entry| {
         let mut content = Vec::<u8>::new();
@@ -166,6 +189,27 @@ fn test_file_content_from_entries() -> Result<()> {
 }
 
 #[test]
+#[cfg(feature = "lending_iter")]
+fn test_file_content_from_entries() -> Result<()> {
+    use crate::LendingIterator;
+
+    let mut all_content = vec![];
+    let mut entries = Archive::open(zip_archive()).entries()?;
+    while let Some(entry) = entries.next() {
+        let mut content = Vec::<u8>::new();
+        let mut blocks = entry?.read_file_by_block();
+        while let Some(block) = blocks.next() {
+            content.extend(block?.iter())
+        }
+        all_content.push(content);
+    }
+    let expected: Vec<&[u8]> = vec![b"", b"first\n", b"third\n", b"", b"second\n"];
+    assert_eq!(expected, all_content);
+    Ok(())
+}
+
+#[test]
+#[cfg(not(feature = "lending_iter"))]
 fn test_entry_name_reproducible() -> Result<()> {
     fn utf8_decoder(bytes: &[u8]) -> Option<Cow<str>> {
         Some(String::from_utf8_lossy(bytes))
@@ -177,5 +221,23 @@ fn test_entry_name_reproducible() -> Result<()> {
         );
         Ok(())
     })?;
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "lending_iter")]
+fn test_entry_name_reproducible() -> Result<()> {
+    use crate::LendingIterator;
+    fn utf8_decoder(bytes: &[u8]) -> Option<Cow<str>> {
+        Some(String::from_utf8_lossy(bytes))
+    }
+    let mut entries = Archive::open(zip_archive()).entries()?;
+    while let Some(entry) = entries.next() {
+        let entry = entry?;
+        assert_eq!(
+            entry.file_name(utf8_decoder)?,
+            entry.file_name(utf8_decoder)?
+        );
+    }
     Ok(())
 }

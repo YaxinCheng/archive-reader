@@ -133,15 +133,24 @@ impl Archive {
     /// one can obtain two things from each entry:
     ///   1. name
     ///   2. content
+    #[cfg(not(feature = "lending_iter"))]
     pub fn entries<F>(&self, mut process: F) -> Result<()>
     where
         F: FnMut(&mut Entry) -> Result<()>,
     {
-        info!(r#"Archive::entries()"#);
+        info!(r#"Archive::entries(process: _)"#);
         for entry in self.list_entries()? {
             process(&mut entry?)?
         }
         Ok(())
+    }
+
+    #[cfg(feature = "lending_iter")]
+    pub fn entries(
+        &self,
+    ) -> Result<impl for<'a> crate::LendingIterator<Item<'a> = Result<&'a mut Entry>>> {
+        info!(r#"Archive::entries()"#);
+        self.list_entries()
     }
 }
 
