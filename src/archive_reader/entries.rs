@@ -1,6 +1,6 @@
 use super::entry::Entry;
 use crate::error::{analyze_result, path_does_not_exist, Error, Result};
-use crate::libarchive;
+use crate::{libarchive, Decoder};
 use log::{debug, error, info};
 use std::ffi::CString;
 use std::path::Path;
@@ -11,11 +11,13 @@ use crate::LendingIterator;
 #[cfg(not(feature = "lending_iter"))]
 pub(crate) struct Entries {
     pub(crate) archive: *mut libarchive::archive,
+    decoder: Decoder,
 }
 
 #[cfg(feature = "lending_iter")]
 pub(crate) struct Entries {
     pub(crate) archive: *mut libarchive::archive,
+    decoder: Decoder,
     pub(crate) entry: Option<Entry>,
 }
 
@@ -28,7 +30,7 @@ impl Iterator for Entries {
     fn next(&mut self) -> Option<Self::Item> {
         let entry = unsafe { self.read_entry() }?;
         match entry {
-            Ok(entry) => Some(Ok(Entry::new(self.archive, entry))),
+            Ok(entry) => Some(Ok(Entry::new(self.archive, entry, self.decoder))),
             Err(error) => Some(Err(error)),
         }
     }
@@ -42,7 +44,7 @@ impl LendingIterator for Entries {
         let entry = unsafe { self.read_entry() }?;
         let entry = match entry {
             Err(error) => return Some(Err(error)),
-            Ok(entry) => Entry::new(self.archive, entry),
+            Ok(entry) => Entry::new(self.archive, entry, self.decoder),
         };
         self.entry.replace(entry);
         self.entry.as_mut().map(Ok)
@@ -72,7 +74,11 @@ impl Entries {
 impl Entries {
     /// `open` is the constructor for ArchiveReader.
     /// It takes in the path to the archive.
-    pub(crate) fn open<P: AsRef<Path>>(archive_path: P, block_size: usize) -> Result<Self> {
+    pub(crate) fn open<P: AsRef<Path>>(
+        archive_path: P,
+        block_size: usize,
+        decoder: Decoder,
+    ) -> Result<Self> {
         let archive_path = archive_path.as_ref();
         info!(
             r#"ArchiveReader::open(archive_path: "{}")"#,
@@ -82,6 +88,7 @@ impl Entries {
         let archive = Self::create_handle(archive_path, block_size)?;
         Ok(Entries {
             archive,
+            decoder,
             #[cfg(feature = "lending_iter")]
             entry: None,
         })
@@ -121,19 +128,16 @@ impl Entries {
         }
     }
 
-    pub(crate) fn file_names(self) -> EntryNames {
+    pub(crate) fn file_names(self) -> impl Iterator<Item = Result<String>> + Send {
         info!(r#"Entries::file_names(decoder: _)"#);
         EntryNames(self)
     }
 
-    pub(crate) fn find_entry_by_name<P>(&mut self, predicate: P) -> Result<()>
-    where
-        P: Fn(&[u8]) -> bool,
-    {
-        info!(r#"Entries::find_entry_by_name(predicate: _)"#);
+    pub(crate) fn find_entry_by_name(&mut self, file_name: &str) -> Result<()> {
+        info!(r#"Entries::find_entry_by_name(decoder: _, file_name: "{file_name}")"#);
         while let Some(item) = self.next() {
             match item {
-                Ok(entry) if predicate(entry.file_name()?) => return Ok(()),
+                Ok(entry) if entry.file_name()? == file_name => return Ok(()),
                 Err(error) => return Err(error),
                 _ => (),
             }
@@ -153,11 +157,11 @@ impl Drop for Entries {
 pub(crate) struct EntryNames(Entries);
 
 impl Iterator for EntryNames {
-    type Item = Result<bytes::Bytes>;
+    type Item = Result<String>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let name = match self.0.next()? {
-            Ok(entry) => entry.file_name().map(bytes::Bytes::copy_from_slice),
+            Ok(entry) => entry.file_name().map(String::from),
             Err(error) => Err(error),
         };
         Some(name)

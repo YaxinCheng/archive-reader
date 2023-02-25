@@ -1,8 +1,9 @@
 use crate::archive_reader::blocks::{BlockReader, BlockReaderBorrowed};
 use crate::archive_reader::entries::Entries;
 use crate::error::Result;
-use crate::Entry;
+use crate::{Decoder, Entry};
 use log::info;
+use std::borrow::Cow;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -18,6 +19,9 @@ pub struct Archive {
     block_size: usize,
     /// `file_path` is the path to the target archive.
     file_path: PathBuf,
+    /// `decoder` is a function that decodes bytes into a proper string.
+    /// By default, it decodes using UTF8.
+    decoder: Option<Decoder>,
 }
 
 impl Archive {
@@ -30,6 +34,7 @@ impl Archive {
         Archive {
             block_size: DEFAULT_BLOCK_SIZE,
             file_path: path.as_ref().into(),
+            decoder: None,
         }
     }
 
@@ -49,27 +54,42 @@ impl Archive {
     pub fn reset_block_size(&mut self) -> &mut Self {
         self.block_size(DEFAULT_BLOCK_SIZE)
     }
+
+    /// `decoding_fn` sets a function as the decoder.
+    ///
+    /// # Note:
+    /// A decoder is a function that converts a series of bytes into a proper string.
+    /// In the case where the conversion failed, it should return `None`.
+    pub fn decoder(&mut self, function: Decoder) -> &mut Self {
+        self.decoder = Some(function);
+        self
+    }
+
+    /// `reset_decoder` resets the decoder back to the default decoder.
+    /// The default decoder converts the bytes into an UTF-8 encoded string.
+    /// Any inconvertible characters will be replaced with a
+    /// U+FFFD REPLACEMENT CHARACTER, which looks like this: �.
+    pub fn reset_decoder(&mut self) -> &mut Self {
+        self.decoder = None;
+        self
+    }
 }
 
 // Consumers
 impl Archive {
     /// `list_file_names` return an iterator of file names extracted from the archive.
-    /// The file names are in bytes,
-    /// and users can choose their own decoder to decode the bytes into string.
-    pub fn list_file_names(&self) -> Result<impl Iterator<Item = Result<bytes::Bytes>> + Send> {
+    /// The file names are decoded using the decoder.
+    pub fn list_file_names(&self) -> Result<impl Iterator<Item = Result<String>> + Send> {
         info!("Archive::list_file_names()");
         self.list_entries().map(|entries| entries.file_names())
     }
 
     /// `read_file` reads the content of a file into the given output.
     /// It also returns the total number of bytes read.
-    pub fn read_file<W: Write, P>(&self, predicate: P, mut output: W) -> Result<usize>
-    where
-        P: Fn(&[u8]) -> bool,
-    {
-        info!(r#"Archive::read_file(predicate: _, output: _)"#);
+    pub fn read_file<W: Write>(&self, file_name: &str, mut output: W) -> Result<usize> {
+        info!(r#"Archive::read_file(file_name: "{file_name}", output: _)"#);
         let mut entries = self.list_entries()?;
-        entries.find_entry_by_name(predicate)?;
+        entries.find_entry_by_name(file_name)?;
         let mut blocks = BlockReaderBorrowed::from(&entries);
         let mut written = 0;
         while let Some(block) = crate::LendingIterator::next(&mut blocks) {
@@ -83,32 +103,26 @@ impl Archive {
     /// `read_file_by_block` reads the content of a file,
     /// and returns an iterator of the blocks.
     #[cfg(not(feature = "lending_iter"))]
-    pub fn read_file_by_block<P>(
+    pub fn read_file_by_block(
         &self,
-        predicate: P,
-    ) -> Result<impl Iterator<Item = Result<bytes::Bytes>> + Send>
-    where
-        P: Fn(&[u8]) -> bool,
-    {
-        info!(r#"Archive::read_file_by_block(predicate: _)"#);
+        file_name: &str,
+    ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send> {
+        info!(r#"Archive::read_file_by_block(file_name: "{file_name}")"#);
         let mut entries = self.list_entries()?;
-        entries.find_entry_by_name(predicate)?;
+        entries.find_entry_by_name(file_name)?;
         Ok(BlockReader::new(entries))
     }
 
     /// `read_file_by_block` reads the content of a file,
     /// and returns an iterator of the blocks.
     #[cfg(feature = "lending_iter")]
-    pub fn read_file_by_block<P>(
+    pub fn read_file_by_block(
         &self,
-        predicate: P,
-    ) -> Result<impl for<'a> crate::LendingIterator<Item<'a> = Result<&'a [u8]>> + Send>
-    where
-        P: Fn(&[u8]) -> bool,
-    {
-        info!(r#"Archive::read_file_by_block(predicate: _)"#);
+        file_name: &str,
+    ) -> Result<impl for<'a> crate::LendingIterator<Item<'a> = Result<&'a [u8]>> + Send> {
+        info!(r#"Archive::read_file_by_block(file_name: "{file_name}")"#);
         let mut entries = self.list_entries()?;
-        entries.find_entry_by_name(predicate)?;
+        entries.find_entry_by_name(file_name)?;
         Ok(BlockReader::new(entries))
     }
 
@@ -145,11 +159,26 @@ impl Archive {
     }
 }
 
-// accessor
+// util functions
 impl Archive {
     fn list_entries(&self) -> Result<Entries> {
-        Entries::open(&self.file_path, self.block_size)
+        Entries::open(&self.file_path, self.block_size, self.get_decoding_fn())
     }
+
+    fn get_decoding_fn(&self) -> Decoder {
+        match self.decoder {
+            Some(decoding_fn) => decoding_fn,
+            None => Self::decode_utf8,
+        }
+    }
+
+    fn decode_utf8(bytes: &[u8]) -> Option<Cow<'_, str>> {
+        Some(String::from_utf8_lossy(bytes))
+    }
+}
+
+// accessor
+impl Archive {
     /// `path` returns the archive file path.
     pub fn path(&self) -> &Path {
         &self.file_path
