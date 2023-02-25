@@ -1,7 +1,9 @@
 mod archive;
-mod iter;
-mod reader;
 #[cfg(test)]
-mod tests;
+mod archive_tests;
+mod blocks;
+mod entries;
+mod entry;
 
 pub use archive::*;
+pub use entry::Entry;
