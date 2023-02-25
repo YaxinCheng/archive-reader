@@ -133,9 +133,15 @@ impl Archive {
     /// one can obtain two things from each entry:
     ///   1. name
     ///   2. content
-    pub fn entries(&self) -> Result<impl Iterator<Item = Result<Entry>> + Send> {
+    pub fn entries<F>(&self, mut process: F) -> Result<()>
+    where
+        F: FnMut(&mut Entry) -> Result<()>,
+    {
         info!(r#"Archive::entries()"#);
-        self.list_entries()
+        for entry in self.list_entries()? {
+            process(&mut entry?)?
+        }
+        Ok(())
     }
 }
 
