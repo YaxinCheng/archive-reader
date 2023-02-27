@@ -81,9 +81,7 @@ impl Entries {
     fn path_exists(archive_path: &Path) -> Result<()> {
         if !archive_path.exists() {
             error!(r#"path "{}" does not exist"#, archive_path.display());
-            return Err(path_does_not_exist(
-                archive_path.to_string_lossy().to_string(),
-            ));
+            return Err(path_does_not_exist(archive_path.to_string_lossy()));
         }
         Ok(())
     }
@@ -126,7 +124,7 @@ impl Entries {
                 _ => (),
             }
         }
-        Err(path_does_not_exist("find_entry_failed".to_string()))
+        Err(path_does_not_exist(file_name))
     }
 }
 

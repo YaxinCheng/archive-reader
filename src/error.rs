@@ -46,6 +46,16 @@ pub(crate) fn analyze_result(
     }
 }
 
-pub(crate) fn path_does_not_exist(message: String) -> Error {
-    Error::Io(std::io::Error::new(std::io::ErrorKind::NotFound, message))
+pub(crate) fn path_does_not_exist<S: Into<String>>(message: S) -> Error {
+    Error::Io(std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        message.into(),
+    ))
+}
+
+pub(crate) fn invalid_data<S: Into<String>>(message: S) -> Error {
+    Error::Io(std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        message.into(),
+    ))
 }

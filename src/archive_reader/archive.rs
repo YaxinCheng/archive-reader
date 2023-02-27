@@ -31,11 +31,14 @@ impl Archive {
     /// It handles the path lazily. So no error will occur until the path is used
     /// and proved to be problematic.
     pub fn open<P: AsRef<Path>>(path: P) -> Self {
-        Archive {
-            block_size: DEFAULT_BLOCK_SIZE,
-            file_path: path.as_ref().into(),
-            decoder: None,
+        fn open_with_path(path: &Path) -> Archive {
+            Archive {
+                block_size: DEFAULT_BLOCK_SIZE,
+                file_path: path.into(),
+                decoder: None,
+            }
         }
+        open_with_path(path.as_ref())
     }
 
     /// `block_size` sets the size limit for every block reading from the archive.
@@ -81,7 +84,7 @@ impl Archive {
     /// The file names are decoded using the decoder.
     pub fn list_file_names(&self) -> Result<impl Iterator<Item = Result<String>> + Send> {
         info!("Archive::list_file_names()");
-        self.list_entries().map(|entries| entries.file_names())
+        self.list_entries().map(Entries::file_names)
     }
 
     /// `read_file` reads the content of a file into the given output.
@@ -174,7 +177,7 @@ impl Archive {
     }
 
     fn decode_utf8(bytes: &[u8]) -> Option<Cow<'_, str>> {
-        Some(String::from_utf8_lossy(bytes))
+        std::str::from_utf8(bytes).map(Cow::Borrowed).ok()
     }
 }
 

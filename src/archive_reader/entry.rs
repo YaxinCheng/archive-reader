@@ -1,6 +1,6 @@
 use super::blocks::BlockReaderBorrowed;
 use super::entries::Entries;
-use crate::error::Result;
+use crate::error::{invalid_data, Result};
 use crate::lending_iter::LendingIterator;
 use crate::locale::UTF8LocaleGuard;
 use crate::{libarchive, Error};
@@ -29,11 +29,7 @@ impl<'a> Entry<'a> {
         let entry_name = unsafe { libarchive::archive_entry_pathname(self.entry) };
         if entry_name.is_null() {
             error!("archive_entry_pathname returns null");
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "archive entry contains invalid name".to_string(),
-            )
-            .into());
+            return Err(invalid_data("archive entry contains invalid name"));
         }
         let entry_name_in_bytes = unsafe { CStr::from_ptr(entry_name).to_bytes() };
         match (self.entries.decoder)(entry_name_in_bytes) {
@@ -49,7 +45,7 @@ impl<'a> Entry<'a> {
     #[cfg(not(feature = "lending_iter"))]
     pub fn read_file_by_block(self) -> impl Iterator<Item = Result<bytes::Bytes>> + Send + 'a {
         info!(r#"Entry::read_file_by_block()"#);
-        BlockReaderBorrowed::new(self.entries.archive)
+        BlockReaderBorrowed::from(self.entries)
     }
 
     /// `read_file_by_block` returns an iterator of the entry content blocks.
@@ -58,13 +54,13 @@ impl<'a> Entry<'a> {
         self,
     ) -> impl for<'b> LendingIterator<Item<'b> = Result<&'b [u8]>> + Send + 'a {
         info!(r#"Entry::read_file_by_block()"#);
-        BlockReaderBorrowed::new(self.entries.archive)
+        BlockReaderBorrowed::from(self.entries)
     }
 
     /// `read_file` reads the content of this entry to an output.
     pub fn read_file<W: Write>(self, mut output: W) -> Result<usize> {
         info!(r#"Entry::read_file(output: _)"#);
-        let mut blocks = BlockReaderBorrowed::new(self.entries.archive);
+        let mut blocks = BlockReaderBorrowed::from(self.entries);
         let mut written = 0;
         while let Some(block) = LendingIterator::next(&mut blocks) {
             let block = block?;

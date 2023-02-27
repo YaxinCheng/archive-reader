@@ -49,18 +49,14 @@ unsafe impl Send for BlockReaderBorrowed {}
 
 impl From<&Entries> for BlockReaderBorrowed {
     fn from(entries: &Entries) -> Self {
-        BlockReaderBorrowed::new(entries.archive)
+        Self {
+            archive: entries.archive,
+            ended: false,
+        }
     }
 }
 
 impl BlockReaderBorrowed {
-    pub(crate) fn new(archive: *mut libarchive::archive) -> Self {
-        Self {
-            archive,
-            ended: false,
-        }
-    }
-
     pub(crate) fn read_block(&mut self) -> Result<&[u8]> {
         if self.ended {
             return Ok(&[]);
