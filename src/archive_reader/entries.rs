@@ -8,29 +8,19 @@ use std::path::Path;
 #[cfg(feature = "lending_iter")]
 use crate::LendingIterator;
 
-#[cfg(not(feature = "lending_iter"))]
 pub(crate) struct Entries {
     pub(crate) archive: *mut libarchive::archive,
-    decoder: Decoder,
-}
-
-#[cfg(feature = "lending_iter")]
-pub(crate) struct Entries {
-    pub(crate) archive: *mut libarchive::archive,
-    decoder: Decoder,
-    pub(crate) entry: Option<Entry>,
+    pub(crate) decoder: Decoder,
 }
 
 unsafe impl Send for Entries {}
 
 #[cfg(not(feature = "lending_iter"))]
-impl Iterator for Entries {
-    type Item = Result<Entry>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+impl Entries {
+    pub(crate) fn next(&mut self) -> Option<Result<Entry>> {
         let entry = unsafe { self.read_entry() }?;
         match entry {
-            Ok(entry) => Some(Ok(Entry::new(self.archive, entry, self.decoder))),
+            Ok(entry) => Some(Ok(Entry::new(self, entry))),
             Err(error) => Some(Err(error)),
         }
     }
@@ -38,16 +28,15 @@ impl Iterator for Entries {
 
 #[cfg(feature = "lending_iter")]
 impl LendingIterator for Entries {
-    type Item<'me> = Result<&'me mut Entry>;
+    type Item<'me> = Result<Entry<'me>>;
 
     fn next(&mut self) -> Option<Self::Item<'_>> {
         let entry = unsafe { self.read_entry() }?;
         let entry = match entry {
             Err(error) => return Some(Err(error)),
-            Ok(entry) => Entry::new(self.archive, entry, self.decoder),
+            Ok(entry) => Entry::new(self, entry),
         };
-        self.entry.replace(entry);
-        self.entry.as_mut().map(Ok)
+        Some(Ok(entry))
     }
 }
 
@@ -86,20 +75,13 @@ impl Entries {
         );
         Self::path_exists(archive_path)?;
         let archive = Self::create_handle(archive_path, block_size)?;
-        Ok(Entries {
-            archive,
-            decoder,
-            #[cfg(feature = "lending_iter")]
-            entry: None,
-        })
+        Ok(Entries { archive, decoder })
     }
 
     fn path_exists(archive_path: &Path) -> Result<()> {
         if !archive_path.exists() {
             error!(r#"path "{}" does not exist"#, archive_path.display());
-            return Err(path_does_not_exist(
-                archive_path.to_string_lossy().to_string(),
-            ));
+            return Err(path_does_not_exist(archive_path.to_string_lossy()));
         }
         Ok(())
     }
@@ -128,7 +110,7 @@ impl Entries {
         }
     }
 
-    pub(crate) fn file_names(self) -> impl Iterator<Item = Result<String>> + Send {
+    pub(crate) fn file_names(self) -> EntryNames {
         info!(r#"Entries::file_names(decoder: _)"#);
         EntryNames(self)
     }
@@ -142,7 +124,7 @@ impl Entries {
                 _ => (),
             }
         }
-        Err(path_does_not_exist("find_entry_failed".to_string()))
+        Err(path_does_not_exist(file_name))
     }
 }
 

@@ -1,35 +1,23 @@
 use super::blocks::BlockReaderBorrowed;
-use crate::error::{Error, Result};
+use super::entries::Entries;
+use crate::error::{invalid_data, Result};
 use crate::lending_iter::LendingIterator;
 use crate::locale::UTF8LocaleGuard;
-use crate::{libarchive, Decoder};
+use crate::{libarchive, Error};
 use log::{error, info};
 use std::borrow::Cow;
 use std::ffi::CStr;
 use std::io::Write;
 
 /// `Entry` represents a file / dir in an archive.
-pub struct Entry {
-    archive: *mut libarchive::archive,
+pub struct Entry<'a> {
+    entries: &'a Entries,
     entry: *mut libarchive::archive_entry,
-    already_read: bool,
-    decoder: Decoder,
 }
 
-unsafe impl Send for Entry {}
-
-impl Entry {
-    pub(crate) fn new(
-        archive: *mut libarchive::archive,
-        entry: *mut libarchive::archive_entry,
-        decoder: Decoder,
-    ) -> Self {
-        Self {
-            archive,
-            entry,
-            already_read: false,
-            decoder,
-        }
+impl<'a> Entry<'a> {
+    pub(crate) fn new(entries: &'a Entries, entry: *mut libarchive::archive_entry) -> Self {
+        Self { entries, entry }
     }
 
     /// `file_name` returns the name of the entry decoded with the provided decoder.
@@ -41,14 +29,10 @@ impl Entry {
         let entry_name = unsafe { libarchive::archive_entry_pathname(self.entry) };
         if entry_name.is_null() {
             error!("archive_entry_pathname returns null");
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "archive entry contains invalid name".to_string(),
-            )
-            .into());
+            return Err(invalid_data("archive entry contains invalid name"));
         }
         let entry_name_in_bytes = unsafe { CStr::from_ptr(entry_name).to_bytes() };
-        match (self.decoder)(entry_name_in_bytes) {
+        match (self.entries.decoder)(entry_name_in_bytes) {
             Some(entry_name) => Ok(entry_name),
             None => {
                 error!("failed to decode entry name");
@@ -59,37 +43,24 @@ impl Entry {
 
     /// `read_file_by_block` returns an iterator of the entry content blocks.
     #[cfg(not(feature = "lending_iter"))]
-    pub fn read_file_by_block(&mut self) -> impl Iterator<Item = Result<Box<[u8]>>> + Send {
+    pub fn read_file_by_block(self) -> impl Iterator<Item = Result<Box<[u8]>>> + Send + 'a {
         info!(r#"Entry::read_file_by_block()"#);
-        if self.already_read {
-            BlockReaderBorrowed::empty()
-        } else {
-            self.already_read = true;
-            BlockReaderBorrowed::new(self.archive)
-        }
+        BlockReaderBorrowed::from(self.entries)
     }
 
     /// `read_file_by_block` returns an iterator of the entry content blocks.
     #[cfg(feature = "lending_iter")]
     pub fn read_file_by_block(
-        &mut self,
-    ) -> impl for<'a> crate::LendingIterator<Item<'a> = Result<&'a [u8]>> + Send {
+        self,
+    ) -> impl for<'b> LendingIterator<Item<'b> = Result<&'b [u8]>> + Send + 'a {
         info!(r#"Entry::read_file_by_block()"#);
-        if self.already_read {
-            BlockReaderBorrowed::empty()
-        } else {
-            self.already_read = true;
-            BlockReaderBorrowed::new(self.archive)
-        }
+        BlockReaderBorrowed::from(self.entries)
     }
 
     /// `read_file` reads the content of this entry to an output.
-    pub fn read_file<W: Write>(&mut self, mut output: W) -> Result<usize> {
+    pub fn read_file<W: Write>(self, mut output: W) -> Result<usize> {
         info!(r#"Entry::read_file(output: _)"#);
-        if self.already_read {
-            return Ok(0);
-        }
-        let mut blocks = BlockReaderBorrowed::new(self.archive);
+        let mut blocks = BlockReaderBorrowed::from(self.entries);
         let mut written = 0;
         while let Some(block) = LendingIterator::next(&mut blocks) {
             let block = block?;

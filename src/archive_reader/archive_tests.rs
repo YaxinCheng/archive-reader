@@ -171,8 +171,8 @@ fn test_file_content_from_entries() -> Result<()> {
     let mut all_content = vec![];
     Archive::open(zip_archive()).entries(|entry| {
         let mut content = Vec::<u8>::new();
-        let mut blocks = entry.read_file_by_block();
-        while let Some(block) = blocks.next() {
+        let blocks = entry.read_file_by_block();
+        for block in blocks {
             content.extend(block?.iter())
         }
         all_content.push(content);
