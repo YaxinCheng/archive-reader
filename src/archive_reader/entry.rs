@@ -2,7 +2,6 @@ use super::blocks::BlockReaderBorrowed;
 use super::entries::Entries;
 use crate::error::{invalid_data, Result};
 use crate::lending_iter::LendingIterator;
-use crate::locale::UTF8LocaleGuard;
 use crate::{libarchive, Error};
 use log::{error, info};
 use std::borrow::Cow;
@@ -24,8 +23,6 @@ impl<'a> Entry<'a> {
     /// It may fail if the decoder cannot decode the name.
     pub fn file_name(&self) -> Result<Cow<str>> {
         info!(r#"Entry::file_name()"#);
-        let _utf8_locale_guard = UTF8LocaleGuard::new();
-
         let entry_name = unsafe { libarchive::archive_entry_pathname(self.entry) };
         if entry_name.is_null() {
             error!("archive_entry_pathname returns null");
