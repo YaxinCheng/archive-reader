@@ -23,9 +23,9 @@ impl BlockReader {
 
 #[cfg(not(feature = "lending_iter"))]
 impl Iterator for BlockReader {
-    type Item = Result<bytes::Bytes>;
+    type Item = Result<Box<[u8]>>;
 
-    fn next(&mut self) -> Option<Result<bytes::Bytes>> {
+    fn next(&mut self) -> Option<Result<Box<[u8]>>> {
         Iterator::next(&mut self.block_reader)
     }
 }
@@ -88,12 +88,12 @@ impl BlockReaderBorrowed {
 }
 
 impl Iterator for BlockReaderBorrowed {
-    type Item = Result<bytes::Bytes>;
+    type Item = Result<Box<[u8]>>;
 
-    fn next(&mut self) -> Option<Result<bytes::Bytes>> {
+    fn next(&mut self) -> Option<Result<Box<[u8]>>> {
         match self.read_block() {
             Ok(&[]) => None,
-            block => Some(block.map(bytes::Bytes::copy_from_slice)),
+            block => Some(block.map(Box::from)),
         }
     }
 }

@@ -109,7 +109,7 @@ impl Archive {
     pub fn read_file_by_block(
         &self,
         file_name: &str,
-    ) -> Result<impl Iterator<Item = Result<bytes::Bytes>> + Send> {
+    ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send> {
         info!(r#"Archive::read_file_by_block(file_name: "{file_name}")"#);
         let mut entries = self.list_entries()?;
         entries.find_entry_by_name(file_name)?;

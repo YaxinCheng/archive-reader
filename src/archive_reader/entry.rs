@@ -43,7 +43,7 @@ impl<'a> Entry<'a> {
 
     /// `read_file_by_block` returns an iterator of the entry content blocks.
     #[cfg(not(feature = "lending_iter"))]
-    pub fn read_file_by_block(self) -> impl Iterator<Item = Result<bytes::Bytes>> + Send + 'a {
+    pub fn read_file_by_block(self) -> impl Iterator<Item = Result<Box<[u8]>>> + Send + 'a {
         info!(r#"Entry::read_file_by_block()"#);
         BlockReaderBorrowed::from(self.entries)
     }
