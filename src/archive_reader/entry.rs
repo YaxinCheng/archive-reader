@@ -2,9 +2,10 @@ use super::blocks::BlockReaderBorrowed;
 use super::entries::Entries;
 use crate::error::Result;
 use crate::lending_iter::LendingIterator;
-use crate::libarchive;
 use crate::locale::UTF8LocaleGuard;
+use crate::{libarchive, Error};
 use log::{error, info};
+use std::borrow::Cow;
 use std::ffi::CStr;
 use std::io::Write;
 
@@ -21,7 +22,7 @@ impl<'a> Entry<'a> {
 
     /// `file_name` returns the name of the entry decoded with the provided decoder.
     /// It may fail if the decoder cannot decode the name.
-    pub fn file_name(&self) -> Result<&[u8]> {
+    pub fn file_name(&self) -> Result<Cow<str>> {
         info!(r#"Entry::file_name()"#);
         let _utf8_locale_guard = UTF8LocaleGuard::new();
 
@@ -34,7 +35,14 @@ impl<'a> Entry<'a> {
             )
             .into());
         }
-        unsafe { Ok(CStr::from_ptr(entry_name).to_bytes()) }
+        let entry_name_in_bytes = unsafe { CStr::from_ptr(entry_name).to_bytes() };
+        match (self.entries.decoder)(entry_name_in_bytes) {
+            Some(entry_name) => Ok(entry_name),
+            None => {
+                error!("failed to decode entry name");
+                Err(Error::Encoding)
+            }
+        }
     }
 
     /// `read_file_by_block` returns an iterator of the entry content blocks.

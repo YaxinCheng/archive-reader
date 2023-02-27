@@ -13,7 +13,7 @@
 //!                         .list_file_names()?
 //!                         .collect::<Result<Vec<_>>>()?;
 //!     let mut content = vec![];
-//!     let _ = archive.read_file(|file_name_bytes| file_name_bytes == &file_names[0], &mut content)?;
+//!     let _ = archive.read_file(&file_names[0], &mut content)?;
 //!     println!("content={content:?}");
 //!     Ok(())
 //! }
@@ -36,3 +36,5 @@ pub use error::*;
 pub use lending_iter::LendingIterator;
 #[cfg(not(feature = "lending_iter"))]
 use lending_iter::LendingIterator;
+
+type Decoder = fn(&[u8]) -> Option<std::borrow::Cow<'_, str>>;
