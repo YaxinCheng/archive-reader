@@ -5,6 +5,7 @@ use log::{debug, error, info};
 use std::ffi::CString;
 use std::path::Path;
 
+use crate::locale::UTF8LocaleGuard;
 #[cfg(feature = "lending_iter")]
 use crate::LendingIterator;
 
@@ -43,6 +44,7 @@ impl LendingIterator for Entries {
 impl Entries {
     unsafe fn read_entry(&self) -> Option<Result<*mut libarchive::archive_entry>> {
         let mut entry = std::ptr::null_mut();
+        let _locale_guard = UTF8LocaleGuard::new();
         match libarchive::archive_read_next_header(self.archive, &mut entry) {
             libarchive::ARCHIVE_EOF => {
                 debug!("archive_read_next_header: reaches EOF");
