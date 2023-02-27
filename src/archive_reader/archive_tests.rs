@@ -174,7 +174,7 @@ fn test_file_names_from_entries() -> Result<()> {
 #[cfg(not(feature = "lending_iter"))]
 fn test_file_content_from_entries() -> Result<()> {
     let mut all_content = vec![];
-    Archive::open(zip_archive()).entries(|entry| {
+    Archive::open(zip_archive()).entries(|mut entry| {
         let mut content = Vec::<u8>::new();
         let mut blocks = entry.read_file_by_block();
         while let Some(block) = blocks.next() {

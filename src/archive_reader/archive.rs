@@ -121,11 +121,12 @@ impl Archive {
     #[cfg(not(feature = "lending_iter"))]
     pub fn entries<F>(&self, mut process: F) -> Result<()>
     where
-        F: FnMut(&mut Entry) -> Result<()>,
+        F: FnMut(Entry) -> Result<()>,
     {
         info!(r#"Archive::entries(process: _)"#);
-        for entry in self.list_entries()? {
-            process(&mut entry?)?
+        let mut entries = self.list_entries()?;
+        while let Some(entry) = entries.next() {
+            process(entry?)?
         }
         Ok(())
     }
@@ -139,7 +140,7 @@ impl Archive {
     #[cfg(feature = "lending_iter")]
     pub fn entries(
         &self,
-    ) -> Result<impl for<'a> crate::LendingIterator<Item<'a> = Result<&'a mut Entry>>> {
+    ) -> Result<impl for<'a> crate::LendingIterator<Item<'a> = Result<Entry<'a>>>> {
         info!(r#"Archive::entries()"#);
         self.list_entries()
     }

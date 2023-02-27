@@ -62,13 +62,6 @@ impl BlockReaderBorrowed {
         }
     }
 
-    pub(crate) fn empty() -> Self {
-        Self {
-            archive: std::ptr::null_mut(),
-            ended: true,
-        }
-    }
-
     pub(crate) fn read_block(&mut self) -> Result<&[u8]> {
         if self.ended {
             return Ok(&[]);

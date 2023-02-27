@@ -8,27 +8,18 @@ use std::path::Path;
 #[cfg(feature = "lending_iter")]
 use crate::LendingIterator;
 
-#[cfg(not(feature = "lending_iter"))]
 pub(crate) struct Entries {
     pub(crate) archive: *mut libarchive::archive,
-}
-
-#[cfg(feature = "lending_iter")]
-pub(crate) struct Entries {
-    pub(crate) archive: *mut libarchive::archive,
-    pub(crate) entry: Option<Entry>,
 }
 
 unsafe impl Send for Entries {}
 
 #[cfg(not(feature = "lending_iter"))]
-impl Iterator for Entries {
-    type Item = Result<Entry>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+impl Entries {
+    pub(crate) fn next(&mut self) -> Option<Result<Entry>> {
         let entry = unsafe { self.read_entry() }?;
         match entry {
-            Ok(entry) => Some(Ok(Entry::new(self.archive, entry))),
+            Ok(entry) => Some(Ok(Entry::new(self, entry))),
             Err(error) => Some(Err(error)),
         }
     }
@@ -36,16 +27,15 @@ impl Iterator for Entries {
 
 #[cfg(feature = "lending_iter")]
 impl LendingIterator for Entries {
-    type Item<'me> = Result<&'me mut Entry>;
+    type Item<'me> = Result<Entry<'me>>;
 
     fn next(&mut self) -> Option<Self::Item<'_>> {
         let entry = unsafe { self.read_entry() }?;
         let entry = match entry {
             Err(error) => return Some(Err(error)),
-            Ok(entry) => Entry::new(self.archive, entry),
+            Ok(entry) => Entry::new(self, entry),
         };
-        self.entry.replace(entry);
-        self.entry.as_mut().map(Ok)
+        Some(Ok(entry))
     }
 }
 
@@ -80,11 +70,7 @@ impl Entries {
         );
         Self::path_exists(archive_path)?;
         let archive = Self::create_handle(archive_path, block_size)?;
-        Ok(Entries {
-            archive,
-            #[cfg(feature = "lending_iter")]
-            entry: None,
-        })
+        Ok(Entries { archive })
     }
 
     fn path_exists(archive_path: &Path) -> Result<()> {

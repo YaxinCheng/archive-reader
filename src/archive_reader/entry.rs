@@ -1,4 +1,5 @@
 use super::blocks::BlockReaderBorrowed;
+use super::entries::Entries;
 use crate::error::Result;
 use crate::lending_iter::LendingIterator;
 use crate::libarchive;
@@ -8,24 +9,14 @@ use std::ffi::CStr;
 use std::io::Write;
 
 /// `Entry` represents a file / dir in an archive.
-pub struct Entry {
-    archive: *mut libarchive::archive,
+pub struct Entry<'a> {
+    entries: &'a Entries,
     entry: *mut libarchive::archive_entry,
-    already_read: bool,
 }
 
-unsafe impl Send for Entry {}
-
-impl Entry {
-    pub(crate) fn new(
-        archive: *mut libarchive::archive,
-        entry: *mut libarchive::archive_entry,
-    ) -> Self {
-        Self {
-            archive,
-            entry,
-            already_read: false,
-        }
+impl<'a> Entry<'a> {
+    pub(crate) fn new(entries: &'a Entries, entry: *mut libarchive::archive_entry) -> Self {
+        Self { entries, entry }
     }
 
     /// `file_name` returns the name of the entry decoded with the provided decoder.
@@ -50,35 +41,22 @@ impl Entry {
     #[cfg(not(feature = "lending_iter"))]
     pub fn read_file_by_block(&mut self) -> impl Iterator<Item = Result<bytes::Bytes>> + Send {
         info!(r#"Entry::read_file_by_block()"#);
-        if self.already_read {
-            BlockReaderBorrowed::empty()
-        } else {
-            self.already_read = true;
-            BlockReaderBorrowed::new(self.archive)
-        }
+        BlockReaderBorrowed::new(self.entries.archive)
     }
 
     /// `read_file_by_block` returns an iterator of the entry content blocks.
     #[cfg(feature = "lending_iter")]
     pub fn read_file_by_block(
-        &mut self,
-    ) -> impl for<'a> crate::LendingIterator<Item<'a> = Result<&'a [u8]>> + Send {
+        self,
+    ) -> impl for<'b> LendingIterator<Item<'b> = Result<&'b [u8]>> + Send {
         info!(r#"Entry::read_file_by_block()"#);
-        if self.already_read {
-            BlockReaderBorrowed::empty()
-        } else {
-            self.already_read = true;
-            BlockReaderBorrowed::new(self.archive)
-        }
+        BlockReaderBorrowed::new(self.entries.archive)
     }
 
     /// `read_file` reads the content of this entry to an output.
-    pub fn read_file<W: Write>(&mut self, mut output: W) -> Result<usize> {
+    pub fn read_file<W: Write>(self, mut output: W) -> Result<usize> {
         info!(r#"Entry::read_file(output: _)"#);
-        if self.already_read {
-            return Ok(0);
-        }
-        let mut blocks = BlockReaderBorrowed::new(self.archive);
+        let mut blocks = BlockReaderBorrowed::new(self.entries.archive);
         let mut written = 0;
         while let Some(block) = LendingIterator::next(&mut blocks) {
             let block = block?;
