@@ -39,7 +39,7 @@ impl<'a> Entry<'a> {
 
     /// `read_file_by_block` returns an iterator of the entry content blocks.
     #[cfg(not(feature = "lending_iter"))]
-    pub fn read_file_by_block(&mut self) -> impl Iterator<Item = Result<bytes::Bytes>> + Send {
+    pub fn read_file_by_block(self) -> impl Iterator<Item = Result<bytes::Bytes>> + Send + 'a {
         info!(r#"Entry::read_file_by_block()"#);
         BlockReaderBorrowed::new(self.entries.archive)
     }
@@ -48,7 +48,7 @@ impl<'a> Entry<'a> {
     #[cfg(feature = "lending_iter")]
     pub fn read_file_by_block(
         self,
-    ) -> impl for<'b> LendingIterator<Item<'b> = Result<&'b [u8]>> + Send {
+    ) -> impl for<'b> LendingIterator<Item<'b> = Result<&'b [u8]>> + Send + 'a {
         info!(r#"Entry::read_file_by_block()"#);
         BlockReaderBorrowed::new(self.entries.archive)
     }
