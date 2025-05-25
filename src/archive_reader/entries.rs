@@ -32,8 +32,7 @@ impl LendingIterator for Entries {
     type Item<'me> = Result<Entry<'me>>;
 
     fn next(&mut self) -> Option<Self::Item<'_>> {
-        let entry = unsafe { self.read_entry() }?;
-        let entry = match entry {
+        let entry = match unsafe { self.read_entry() }? {
             Err(error) => return Some(Err(error)),
             Ok(entry) => Entry::new(self, entry),
         };
@@ -45,7 +44,7 @@ impl Entries {
     unsafe fn read_entry(&self) -> Option<Result<*mut libarchive::archive_entry>> {
         let mut entry = std::ptr::null_mut();
         let _locale_guard = UTF8LocaleGuard::new();
-        match libarchive::archive_read_next_header(self.archive, &mut entry) {
+        match unsafe { libarchive::archive_read_next_header(self.archive, &mut entry) } {
             libarchive::ARCHIVE_EOF => {
                 debug!("archive_read_next_header: reaches EOF");
                 return None;
@@ -65,10 +64,11 @@ impl Entries {
 impl Entries {
     /// `open` is the constructor for ArchiveReader.
     /// It takes in the path to the archive.
-    pub(crate) fn open<P: AsRef<Path>>(
+    pub(crate) fn open<'a, P: AsRef<Path>>(
         archive_path: P,
         block_size: usize,
         decoder: Decoder,
+        passwords: impl Iterator<Item = &'a str>,
     ) -> Result<Self> {
         let archive_path = archive_path.as_ref();
         info!(
@@ -76,7 +76,7 @@ impl Entries {
             archive_path.display()
         );
         Self::path_exists(archive_path)?;
-        let archive = Self::create_handle(archive_path, block_size)?;
+        let archive = Self::create_handle(archive_path, block_size, passwords)?;
         Ok(Entries { archive, decoder })
     }
 
@@ -88,7 +88,11 @@ impl Entries {
         Ok(())
     }
 
-    fn create_handle(archive_path: &Path, block_size: usize) -> Result<*mut libarchive::archive> {
+    fn create_handle<'a>(
+        archive_path: &Path,
+        block_size: usize,
+        passwords: impl Iterator<Item = &'a str>,
+    ) -> Result<*mut libarchive::archive> {
         let archive_path = CString::new(archive_path.to_str().ok_or(Error::PathNotUtf8)?)
             .expect("An existing path cannot be null");
         unsafe {
@@ -96,6 +100,13 @@ impl Entries {
             analyze_result(libarchive::archive_read_support_filter_all(handle), handle)?;
             analyze_result(libarchive::archive_read_support_format_raw(handle), handle)?;
             analyze_result(libarchive::archive_read_support_format_all(handle), handle)?;
+            for password in passwords {
+                let password = CString::new(password)?;
+                analyze_result(
+                    libarchive::archive_read_add_passphrase(handle, password.as_ptr()),
+                    handle,
+                )?;
+            }
             analyze_result(
                 libarchive::archive_read_open_filename(handle, archive_path.as_ptr(), block_size),
                 handle,

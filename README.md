@@ -32,12 +32,15 @@ fn main() -> Result<()> {
 # Getting Started
 This section talks about compiling this project
 ## Prerequisites:
-* Rust 1.66.0 (May be compatible with lower versions, but I used 1.66.0)
+* Rust 1.87.0 (May be compatible with lower versions, but I used 1.87.0)
 * Cargo
 * Git
 * libc
 * libarchive >= 3.2.0
   * Check it with command `pkg-config --libs --cflags libarchive 'libarchive >= 3.2.0'`
+
+## Known Issues
+* Encrypted 7z are not supported due to the limit of libarchive
 
 ## Compile
 ```shell
