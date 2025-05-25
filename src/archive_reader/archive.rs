@@ -14,7 +14,7 @@ pub struct Archive {
     /// `block_size` is a size that will be used to break down content into blocks.
     /// The blocks read from the archive are not exactly the size of the `block_size`,
     /// due to compression and other factors.
-    /// Increasing the size of this variable can make the reader reads more content
+    /// Increasing the size of this variable can make the reader read more content
     /// into each block.
     block_size: usize,
     /// `file_path` is the path to the target archive.
@@ -28,8 +28,8 @@ impl Archive {
     /// `open` creates a default `Archive` configuration from the given path.
     ///
     /// # Note:
-    /// It handles the path lazily. So no error will occur until the path is used
-    /// and proved to be problematic.
+    /// It handles the path lazily. So no error will occur until operations are operated on
+    /// the archive.
     pub fn open<P: AsRef<Path>>(path: P) -> Self {
         fn open_with_path(path: &Path) -> Archive {
             Archive {
@@ -45,7 +45,7 @@ impl Archive {
     /// The block size is represented in bytes.
     ///
     /// # Note:
-    /// Content from archives are read block by block.
+    /// The content from archives is read block by block.
     /// Setting the block size will increase/decrease the time and content of
     /// reading each block.  
     pub fn block_size(&mut self, block_size: usize) -> &mut Self {
@@ -69,7 +69,7 @@ impl Archive {
     }
 
     /// `reset_decoder` resets the decoder back to the default decoder.
-    /// The default decoder converts the bytes into an UTF-8 encoded string.
+    /// The default decoder converts the bytes into a UTF-8 encoded string.
     /// Any inconvertible characters will be replaced with a
     /// U+FFFD REPLACEMENT CHARACTER, which looks like this: �.
     pub fn reset_decoder(&mut self) -> &mut Self {
@@ -103,20 +103,20 @@ impl Archive {
         Ok(written)
     }
 
-    /// `read_file_by_block` reads the content of a file,
+    /// `read_file_by_block` reads the content of a file
     /// and returns an iterator of the blocks.
     #[cfg(not(feature = "lending_iter"))]
     pub fn read_file_by_block(
         &self,
         file_name: &str,
-    ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send> {
+    ) -> Result<impl Iterator<Item = Result<Box<[u8]>>> + Send + use<>> {
         info!(r#"Archive::read_file_by_block(file_name: "{file_name}")"#);
         let mut entries = self.list_entries()?;
         entries.find_entry_by_name(file_name)?;
         Ok(BlockReader::new(entries))
     }
 
-    /// `read_file_by_block` reads the content of a file,
+    /// `read_file_by_block` reads the content of a file
     /// and returns an iterator of the blocks.
     #[cfg(feature = "lending_iter")]
     pub fn read_file_by_block(
@@ -129,12 +129,12 @@ impl Archive {
         Ok(BlockReader::new(entries))
     }
 
-    /// `entries` iterates through each file / dir in the archive,
+    /// `entries` iterates through each file / dir in the archive
     /// and passes the mutable references of the entries to the process closure.
     /// Using the functions provided on the `Entry` object,
-    /// one can obtain two things from each entry:
-    ///   1. name
-    ///   2. content
+    /// one can get two things from each entry:
+    ///   1. Name
+    ///   2. Content
     #[cfg(not(feature = "lending_iter"))]
     pub fn entries<F>(&self, mut process: F) -> Result<()>
     where
@@ -151,9 +151,9 @@ impl Archive {
     /// `entries` returns a lending iterator of `Entry`s.
     /// Each `Entry` represents a file / dir in an archive.
     /// Using the functions provided on the `Entry` object,
-    /// one can obtain two things from each entry:
-    ///   1. name
-    ///   2. content
+    /// one can get two things from each entry:
+    ///   1. Name
+    ///   2. Content
     #[cfg(feature = "lending_iter")]
     pub fn entries(
         &self,

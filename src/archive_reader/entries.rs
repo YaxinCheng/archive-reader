@@ -32,8 +32,7 @@ impl LendingIterator for Entries {
     type Item<'me> = Result<Entry<'me>>;
 
     fn next(&mut self) -> Option<Self::Item<'_>> {
-        let entry = unsafe { self.read_entry() }?;
-        let entry = match entry {
+        let entry = match unsafe { self.read_entry() }? {
             Err(error) => return Some(Err(error)),
             Ok(entry) => Entry::new(self, entry),
         };
@@ -45,7 +44,7 @@ impl Entries {
     unsafe fn read_entry(&self) -> Option<Result<*mut libarchive::archive_entry>> {
         let mut entry = std::ptr::null_mut();
         let _locale_guard = UTF8LocaleGuard::new();
-        match libarchive::archive_read_next_header(self.archive, &mut entry) {
+        match unsafe { libarchive::archive_read_next_header(self.archive, &mut entry) } {
             libarchive::ARCHIVE_EOF => {
                 debug!("archive_read_next_header: reaches EOF");
                 return None;

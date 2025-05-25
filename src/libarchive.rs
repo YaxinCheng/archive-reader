@@ -14,9 +14,9 @@ pub(crate) struct archive {
 pub(crate) struct archive_entry {
     _unused: [u8; 0],
 }
-extern "C" {
+unsafe extern "C" {
     pub(crate) fn archive_entry_pathname(arg1: *mut archive_entry)
-        -> *const ::std::os::raw::c_char;
+    -> *const ::std::os::raw::c_char;
     pub(crate) fn archive_errno(arg1: *mut archive) -> ::std::os::raw::c_int;
     pub(crate) fn archive_error_string(arg1: *mut archive) -> *const ::std::os::raw::c_char;
     pub(crate) fn archive_read_close(arg1: *mut archive) -> ::std::os::raw::c_int;

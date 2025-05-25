@@ -32,7 +32,7 @@ fn main() -> Result<()> {
 # Getting Started
 This section talks about compiling this project
 ## Prerequisites:
-* Rust 1.66.0 (May be compatible with lower versions, but I used 1.66.0)
+* Rust 1.87.0 (May be compatible with lower versions, but I used 1.87.0)
 * Cargo
 * Git
 * libc
