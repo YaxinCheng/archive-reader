@@ -39,6 +39,9 @@ This section talks about compiling this project
 * libarchive >= 3.2.0
   * Check it with command `pkg-config --libs --cflags libarchive 'libarchive >= 3.2.0'`
 
+## Known Issues
+* Encrypted 7z are not supported due to the limit of libarchive
+
 ## Compile
 ```shell
 cd SOME_DIR

@@ -100,6 +100,9 @@ impl Archive {
 
     /// `read_file` reads the content of a file into the given output.
     /// It also returns the total number of bytes read.
+    ///
+    /// # Note
+    /// Passwords need to be set before calling this function if the archive is encrypted.
     pub fn read_file<W: Write>(&self, file_name: &str, mut output: W) -> Result<usize> {
         info!(r#"Archive::read_file(file_name: "{file_name}", output: _)"#);
         let mut entries = self.list_entries()?;
@@ -116,6 +119,9 @@ impl Archive {
 
     /// `read_file_by_block` reads the content of a file
     /// and returns an iterator of the blocks.
+    ///
+    /// # Note
+    /// Passwords need to be set before calling this function if the archive is encrypted.
     #[cfg(not(feature = "lending_iter"))]
     pub fn read_file_by_block(
         &self,
@@ -129,6 +135,9 @@ impl Archive {
 
     /// `read_file_by_block` reads the content of a file
     /// and returns an iterator of the blocks.
+    ///
+    /// # Note
+    /// Passwords need to be set before calling this function if the archive is encrypted.
     #[cfg(feature = "lending_iter")]
     pub fn read_file_by_block(
         &self,
@@ -146,6 +155,9 @@ impl Archive {
     /// one can get two things from each entry:
     ///   1. Name
     ///   2. Content
+    ///
+    /// # Note
+    /// Passwords need to be set before calling this function if the archive is encrypted.
     #[cfg(not(feature = "lending_iter"))]
     pub fn entries<F>(&self, mut process: F) -> Result<()>
     where
@@ -165,6 +177,9 @@ impl Archive {
     /// one can get two things from each entry:
     ///   1. Name
     ///   2. Content
+    ///
+    /// # Note
+    /// Passwords need to be set before calling this function if the archive is encrypted.
     #[cfg(feature = "lending_iter")]
     pub fn entries(
         &self,

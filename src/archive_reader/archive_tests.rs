@@ -17,6 +17,11 @@ const fn encrypted_archive() -> &'static str {
     concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/encrypted.zip")
 }
 
+// 7z can encrypt even the file names.
+const fn encrypted_7z() -> &'static str {
+    concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/encrypted.7z")
+}
+
 #[test]
 fn test_list_zip_file_names() -> Result<()> {
     let expected = [
@@ -251,6 +256,20 @@ fn test_read_encrypted_archive_failed_without_password() -> Result<()> {
 }
 
 #[test]
+fn test_read_encrypted_archive_failed_with_empty_password() -> Result<()> {
+    let mut file_content = vec![];
+    let read_result = Archive::open(encrypted_archive())
+        .try_password("")
+        .read_file("encrypted", &mut file_content);
+    let error_msg = match read_result {
+        Err(Error::Extraction(msg)) => msg,
+        unexpected => panic!("unexpected result type: {unexpected:?}"),
+    };
+    assert_eq!(error_msg, "Empty passphrase is unacceptable");
+    Ok(())
+}
+
+#[test]
 fn test_read_encrypted_archive_failed_wrong_password() -> Result<()> {
     let mut file_content = vec![];
     let read_result = Archive::open(encrypted_archive())
@@ -271,5 +290,34 @@ fn test_read_encrypted_archive_success() -> Result<()> {
         .try_password("password")
         .read_file("encrypted", &mut file_content)?;
     assert_eq!(file_content, b"encrypted\n");
+    Ok(())
+}
+
+#[test]
+fn test_read_encrypted_archive_success_with_multiple_password() -> Result<()> {
+    let mut file_content = vec![];
+    Archive::open(encrypted_archive())
+        .try_password("password")
+        .try_password("wrong")
+        .try_password("wrong2")
+        .read_file("encrypted", &mut file_content)?;
+    assert_eq!(file_content, b"encrypted\n");
+    Ok(())
+}
+
+#[test]
+fn test_read_file_names_from_encrypted_7z_failed() -> Result<()> {
+    let file_names = Archive::open(encrypted_7z())
+        .try_password("password")
+        .list_file_names()?
+        .collect::<Result<Vec<_>>>();
+    let error_msg = match file_names {
+        Err(Error::Extraction(msg)) => msg,
+        unexpected => panic!("unexpected result type: {unexpected:?}"),
+    };
+    assert_eq!(
+        error_msg,
+        "The archive header is encrypted, but currently not supported"
+    );
     Ok(())
 }
