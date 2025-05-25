@@ -5,7 +5,7 @@ It provides rustic interface over listing file names and reading given files wit
 
 ```toml
 [dependencies]
-archive-reader = "0.3"
+archive-reader = "0.4"
 ```
 
 # Example
