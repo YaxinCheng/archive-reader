@@ -40,4 +40,8 @@ unsafe extern "C" {
     pub(crate) fn archive_read_support_filter_all(arg1: *mut archive) -> ::std::os::raw::c_int;
     pub(crate) fn archive_read_support_format_all(arg1: *mut archive) -> ::std::os::raw::c_int;
     pub(crate) fn archive_read_support_format_raw(arg1: *mut archive) -> ::std::os::raw::c_int;
+    pub(crate) fn archive_read_add_passphrase(
+        archive: *mut archive,
+        passphrase: *const ::std::os::raw::c_char,
+    ) -> ::std::os::raw::c_int;
 }

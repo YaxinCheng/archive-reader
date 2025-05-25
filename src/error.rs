@@ -16,6 +16,8 @@ pub enum Error {
     /// the entry name.
     #[error("Entry name cannot be decoded with given encoding")]
     Encoding,
+    #[error("Failed to convert string to cstring: {0:?}")]
+    StringError(#[from] std::ffi::NulError),
     /// Unspecified error
     #[error("Unknown error happened")]
     Unknown,

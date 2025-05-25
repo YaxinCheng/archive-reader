@@ -1,4 +1,4 @@
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::Archive;
 
 const fn zip_archive() -> &'static str {
@@ -11,6 +11,10 @@ const fn seven_z_archive() -> &'static str {
 
 const fn rar_archive() -> &'static str {
     concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/test.rar")
+}
+
+const fn encrypted_archive() -> &'static str {
+    concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/encrypted.zip")
 }
 
 #[test]
@@ -222,5 +226,50 @@ fn test_entry_name_reproducible() -> Result<()> {
         let entry = entry?;
         assert_eq!(entry.file_name()?, entry.file_name()?);
     }
+    Ok(())
+}
+
+#[test]
+fn test_read_file_names_from_encrypted_archive_success() -> Result<()> {
+    let file_names = Archive::open(encrypted_archive())
+        .list_file_names()?
+        .collect::<Result<Vec<_>>>()?;
+    assert_eq!(file_names, ["encrypted"]);
+    Ok(())
+}
+
+#[test]
+fn test_read_encrypted_archive_failed_without_password() -> Result<()> {
+    let mut file_content = vec![];
+    let read_result = Archive::open(encrypted_archive()).read_file("encrypted", &mut file_content);
+    let error_msg = match read_result {
+        Err(Error::Extraction(msg)) => msg,
+        unexpected => panic!("unexpected result type: {unexpected:?}"),
+    };
+    assert_eq!(error_msg, "Passphrase required for this entry");
+    Ok(())
+}
+
+#[test]
+fn test_read_encrypted_archive_failed_wrong_password() -> Result<()> {
+    let mut file_content = vec![];
+    let read_result = Archive::open(encrypted_archive())
+        .try_password("wrong")
+        .read_file("encrypted", &mut file_content);
+    let error_msg = match read_result {
+        Err(Error::Extraction(msg)) => msg,
+        unexpected => panic!("unexpected result type: {unexpected:?}"),
+    };
+    assert_eq!(error_msg, "Incorrect passphrase");
+    Ok(())
+}
+
+#[test]
+fn test_read_encrypted_archive_success() -> Result<()> {
+    let mut file_content = vec![];
+    Archive::open(encrypted_archive())
+        .try_password("password")
+        .read_file("encrypted", &mut file_content)?;
+    assert_eq!(file_content, b"encrypted\n");
     Ok(())
 }

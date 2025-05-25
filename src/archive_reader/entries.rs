@@ -64,10 +64,11 @@ impl Entries {
 impl Entries {
     /// `open` is the constructor for ArchiveReader.
     /// It takes in the path to the archive.
-    pub(crate) fn open<P: AsRef<Path>>(
+    pub(crate) fn open<'a, P: AsRef<Path>>(
         archive_path: P,
         block_size: usize,
         decoder: Decoder,
+        passwords: impl Iterator<Item = &'a str>,
     ) -> Result<Self> {
         let archive_path = archive_path.as_ref();
         info!(
@@ -75,7 +76,7 @@ impl Entries {
             archive_path.display()
         );
         Self::path_exists(archive_path)?;
-        let archive = Self::create_handle(archive_path, block_size)?;
+        let archive = Self::create_handle(archive_path, block_size, passwords)?;
         Ok(Entries { archive, decoder })
     }
 
@@ -87,7 +88,11 @@ impl Entries {
         Ok(())
     }
 
-    fn create_handle(archive_path: &Path, block_size: usize) -> Result<*mut libarchive::archive> {
+    fn create_handle<'a>(
+        archive_path: &Path,
+        block_size: usize,
+        passwords: impl Iterator<Item = &'a str>,
+    ) -> Result<*mut libarchive::archive> {
         let archive_path = CString::new(archive_path.to_str().ok_or(Error::PathNotUtf8)?)
             .expect("An existing path cannot be null");
         unsafe {
@@ -95,6 +100,13 @@ impl Entries {
             analyze_result(libarchive::archive_read_support_filter_all(handle), handle)?;
             analyze_result(libarchive::archive_read_support_format_raw(handle), handle)?;
             analyze_result(libarchive::archive_read_support_format_all(handle), handle)?;
+            for password in passwords {
+                let password = CString::new(password)?;
+                analyze_result(
+                    libarchive::archive_read_add_passphrase(handle, password.as_ptr()),
+                    handle,
+                )?;
+            }
             analyze_result(
                 libarchive::archive_read_open_filename(handle, archive_path.as_ptr(), block_size),
                 handle,

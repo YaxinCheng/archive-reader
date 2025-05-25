@@ -22,6 +22,9 @@ pub struct Archive {
     /// `decoder` is a function that decodes bytes into a proper string.
     /// By default, it decodes using UTF8.
     decoder: Option<Decoder>,
+    /// Possible passwords to be used to decrypt the archive.
+    /// By default, no password is used.
+    passwords: Vec<String>,
 }
 
 impl Archive {
@@ -36,6 +39,7 @@ impl Archive {
                 block_size: DEFAULT_BLOCK_SIZE,
                 file_path: path.into(),
                 decoder: None,
+                passwords: vec![],
             }
         }
         open_with_path(path.as_ref())
@@ -74,6 +78,13 @@ impl Archive {
     /// U+FFFD REPLACEMENT CHARACTER, which looks like this: �.
     pub fn reset_decoder(&mut self) -> &mut Self {
         self.decoder = None;
+        self
+    }
+
+    /// `try_password` adds a potential password to try during the unpacking.
+    /// Calling this method multiple times will add multiple passwords to be tried.
+    pub fn try_password(&mut self, passwd: impl Into<String>) -> &mut Self {
+        self.passwords.push(passwd.into());
         self
     }
 }
@@ -166,7 +177,12 @@ impl Archive {
 // util functions
 impl Archive {
     fn list_entries(&self) -> Result<Entries> {
-        Entries::open(&self.file_path, self.block_size, self.get_decoding_fn())
+        Entries::open(
+            &self.file_path,
+            self.block_size,
+            self.get_decoding_fn(),
+            self.passwords.iter().map(String::as_str),
+        )
     }
 
     fn get_decoding_fn(&self) -> Decoder {
