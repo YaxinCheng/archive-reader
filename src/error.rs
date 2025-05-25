@@ -23,6 +23,20 @@ pub enum Error {
     Unknown,
 }
 
+#[cfg(test)]
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Error::Extraction(my_msg), Error::Extraction(other_msg)) => my_msg == other_msg,
+            (Error::Io(my_err), Error::Io(other_err)) => my_err.kind() == other_err.kind(),
+            (Error::PathNotUtf8, Error::PathNotUtf8)
+            | (Error::Unknown, Error::Unknown)
+            | (Error::StringError(_), Error::StringError(_)) => true,
+            _ => false,
+        }
+    }
+}
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub(crate) fn analyze_result(

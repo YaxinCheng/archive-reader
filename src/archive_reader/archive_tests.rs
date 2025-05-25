@@ -24,84 +24,110 @@ const fn encrypted_7z() -> &'static str {
 
 #[test]
 fn test_list_zip_file_names() -> Result<()> {
-    let expected = [
-        "content/",
-        "content/first",
-        "content/third",
-        "content/nested/",
-        "content/nested/second",
-    ];
-    test_list_file_names(zip_archive(), &expected)
+    let file_names = Archive::open(zip_archive())
+        .list_file_names()?
+        .collect::<Result<Vec<_>>>()?;
+    assert_eq!(
+        file_names,
+        [
+            "content/",
+            "content/first",
+            "content/third",
+            "content/nested/",
+            "content/nested/second",
+        ]
+    );
+    Ok(())
 }
 
 #[test]
 fn test_list_7z_file_names() -> Result<()> {
-    let expected = [
-        "content/",
-        "content/nested/",
-        "content/first",
-        "content/nested/second",
-        "content/third",
-    ];
-    test_list_file_names(seven_z_archive(), &expected)
+    let file_names = Archive::open(seven_z_archive())
+        .list_file_names()?
+        .collect::<Result<Vec<_>>>()?;
+    assert_eq!(
+        file_names,
+        [
+            "content/",
+            "content/nested/",
+            "content/first",
+            "content/nested/second",
+            "content/third",
+        ]
+    );
+    Ok(())
 }
 
 #[test]
 fn test_list_rar_file_names() -> Result<()> {
-    let expected = [
-        "content/first",
-        "content/third",
-        "content/nested/second",
-        "content/nested",
-        "content",
-    ];
-    test_list_file_names(rar_archive(), &expected)
-}
-
-fn test_list_file_names(path: &str, expected: &[&str]) -> Result<()> {
-    let file_names = Archive::open(path)
+    let file_names = Archive::open(rar_archive())
         .list_file_names()?
         .collect::<Result<Vec<_>>>()?;
-    assert_eq!(file_names, expected);
+    assert_eq!(
+        file_names,
+        [
+            "content/first",
+            "content/third",
+            "content/nested/second",
+            "content/nested",
+            "content",
+        ]
+    );
     Ok(())
 }
 
 #[test]
 fn test_read_zip() -> Result<()> {
-    test_read_file_to_bytes(zip_archive(), "content/nested/second", b"second\n")
+    let mut output = vec![];
+    let _ = Archive::open(zip_archive()).read_file("content/nested/second", &mut output)?;
+    assert_eq!(output, b"second\n");
+    Ok(())
 }
 
 #[test]
 fn test_read_7z() -> Result<()> {
-    test_read_file_to_bytes(seven_z_archive(), "content/nested/second", b"second\n")
+    let mut output = vec![];
+    let _ = Archive::open(seven_z_archive()).read_file("content/nested/second", &mut output)?;
+    assert_eq!(output, b"second\n");
+    Ok(())
 }
 
 #[test]
 fn test_read_rar() -> Result<()> {
-    test_read_file_to_bytes(rar_archive(), "content/nested/second", b"second\n")
+    let mut output = vec![];
+    let _ = Archive::open(rar_archive()).read_file("content/nested/second", &mut output)?;
+    assert_eq!(output, b"second\n");
+    Ok(())
 }
 
 #[test]
-#[should_panic]
-fn test_read_non_existing_file() {
-    test_read_file_to_bytes(zip_archive(), "not_existed", b"").unwrap()
+fn test_read_non_existing_file() -> Result<()> {
+    let mut output = vec![];
+    let read_result = Archive::open(zip_archive()).read_file("not_existed", &mut output);
+    assert_eq!(
+        read_result,
+        Err(Error::Io(std::io::ErrorKind::NotFound.into()))
+    );
+    Ok(())
 }
 
 #[test]
 fn test_empty_file() -> Result<()> {
-    let zip_path = concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/empty.zip");
-    test_read_file_to_bytes(zip_path, "empty", b"")
+    let mut output = vec![];
+    let _ = Archive::open(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/test_resources/empty.zip"
+    ))
+    .read_file("empty", &mut output)?;
+    assert_eq!(output, b"");
+    Ok(())
 }
 
 #[test]
 fn test_read_dir() -> Result<()> {
-    test_read_file_to_bytes(zip_archive(), "content/", b"")
-}
-
-fn test_read_file_to_bytes(archive_path: &str, content_path: &str, expected: &[u8]) -> Result<()> {
     let mut output = vec![];
-    let _ = Archive::open(archive_path).read_file(content_path, &mut output)?;
-    assert_eq!(output, expected);
+    let _ = Archive::open(zip_archive()).read_file("content/", &mut output)?;
+    assert_eq!(output, b"");
     Ok(())
 }
 
@@ -141,14 +167,16 @@ fn test_file_names_from_entries() -> Result<()> {
         names.push(file_name);
         Ok(())
     })?;
-    let expected = [
-        "content/",
-        "content/first",
-        "content/third",
-        "content/nested/",
-        "content/nested/second",
-    ];
-    assert_eq!(names, expected);
+    assert_eq!(
+        names,
+        [
+            "content/",
+            "content/first",
+            "content/third",
+            "content/nested/",
+            "content/nested/second",
+        ]
+    );
     Ok(())
 }
 
@@ -163,14 +191,16 @@ fn test_file_names_from_entries() -> Result<()> {
         let file_name = entry?.file_name()?.to_string();
         names.push(file_name);
     }
-    let expected = [
-        "content/",
-        "content/first",
-        "content/third",
-        "content/nested/",
-        "content/nested/second",
-    ];
-    assert_eq!(names, expected);
+    assert_eq!(
+        names,
+        [
+            "content/",
+            "content/first",
+            "content/third",
+            "content/nested/",
+            "content/nested/second",
+        ]
+    );
     Ok(())
 }
 
@@ -247,11 +277,12 @@ fn test_read_file_names_from_encrypted_archive_success() -> Result<()> {
 fn test_read_encrypted_archive_failed_without_password() -> Result<()> {
     let mut file_content = vec![];
     let read_result = Archive::open(encrypted_archive()).read_file("encrypted", &mut file_content);
-    let error_msg = match read_result {
-        Err(Error::Extraction(msg)) => msg,
-        unexpected => panic!("unexpected result type: {unexpected:?}"),
-    };
-    assert_eq!(error_msg, "Passphrase required for this entry");
+    assert_eq!(
+        read_result,
+        Err(Error::Extraction(
+            "Passphrase required for this entry".into()
+        ))
+    );
     Ok(())
 }
 
@@ -261,11 +292,10 @@ fn test_read_encrypted_archive_failed_with_empty_password() -> Result<()> {
     let read_result = Archive::open(encrypted_archive())
         .try_password("")
         .read_file("encrypted", &mut file_content);
-    let error_msg = match read_result {
-        Err(Error::Extraction(msg)) => msg,
-        unexpected => panic!("unexpected result type: {unexpected:?}"),
-    };
-    assert_eq!(error_msg, "Empty passphrase is unacceptable");
+    assert_eq!(
+        read_result,
+        Err(Error::Extraction("Empty passphrase is unacceptable".into()))
+    );
     Ok(())
 }
 
@@ -275,11 +305,10 @@ fn test_read_encrypted_archive_failed_wrong_password() -> Result<()> {
     let read_result = Archive::open(encrypted_archive())
         .try_password("wrong")
         .read_file("encrypted", &mut file_content);
-    let error_msg = match read_result {
-        Err(Error::Extraction(msg)) => msg,
-        unexpected => panic!("unexpected result type: {unexpected:?}"),
-    };
-    assert_eq!(error_msg, "Incorrect passphrase");
+    assert_eq!(
+        read_result,
+        Err(Error::Extraction("Incorrect passphrase".into()))
+    );
     Ok(())
 }
 
@@ -311,13 +340,11 @@ fn test_read_file_names_from_encrypted_7z_failed() -> Result<()> {
         .try_password("password")
         .list_file_names()?
         .collect::<Result<Vec<_>>>();
-    let error_msg = match file_names {
-        Err(Error::Extraction(msg)) => msg,
-        unexpected => panic!("unexpected result type: {unexpected:?}"),
-    };
     assert_eq!(
-        error_msg,
-        "The archive header is encrypted, but currently not supported"
+        file_names,
+        Err(Error::Extraction(
+            "The archive header is encrypted, but currently not supported".into()
+        ))
     );
     Ok(())
 }
