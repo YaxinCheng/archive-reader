@@ -17,6 +17,10 @@ const fn encrypted_archive() -> &'static str {
     concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/encrypted.zip")
 }
 
+const fn zip_with_null_in_file() -> &'static str {
+    concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/null.zip")
+}
+
 // 7z can encrypt even the file names.
 const fn encrypted_7z() -> &'static str {
     concat!(env!("CARGO_MANIFEST_DIR"), "/test_resources/encrypted.7z")
@@ -346,5 +350,18 @@ fn test_read_file_names_from_encrypted_7z_failed() -> Result<()> {
             "The archive header is encrypted, but currently not supported".into()
         ))
     );
+    Ok(())
+}
+
+#[test]
+fn test_read_file_ending_with_null() -> Result<()> {
+    let mut buf = Vec::<u8>::new();
+    let size = Archive::open(zip_with_null_in_file()).read_file("IMG_1439.jpg", &mut buf)?;
+    let expected = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/test_resources/null_in_file.jpg"
+    ));
+    assert_eq!(size, expected.len());
+    assert_eq!(buf, expected);
     Ok(())
 }
