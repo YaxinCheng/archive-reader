@@ -74,8 +74,12 @@ impl BlockReaderBorrowed {
             }
             result => match analyze_result(result, self.archive) {
                 Ok(()) => {
-                    let content = unsafe { slice::from_raw_parts(buf as *const u8, size) };
-                    Ok(content)
+                    if buf.is_null() {
+                        Ok(&[])
+                    } else {
+                        let content = unsafe { slice::from_raw_parts(buf as *const u8, size) };
+                        Ok(content)
+                    }
                 }
                 Err(error) => {
                     error!("archive_read_data_block error: {error:?}");
